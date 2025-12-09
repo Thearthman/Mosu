@@ -114,10 +114,15 @@ fun LibraryScreen(
                 if (tracks.isEmpty()) return@items
 
                 if (tracks.size > 1) {
-                    // Album Group
+                            // Album Group
                     AlbumGroupItem(
                         tracks = tracks,
                         musicController = musicController,
+                        onPlay = { selectedTrack ->
+                            // Play selected track with the album as context (or all filtered maps?)
+                            // Standard behavior: Play track, queue rest of library (filtered)
+                            musicController.playSong(selectedTrack, filteredMaps)
+                        },
                         onDelete = {
                             scope.launch {
                                 tracks.forEach { track ->
@@ -135,6 +140,9 @@ fun LibraryScreen(
                     SingleTrackItem(
                         map = tracks[0],
                         musicController = musicController,
+                        onPlay = {
+                            musicController.playSong(tracks[0], filteredMaps)
+                        },
                         onDelete = {
                             scope.launch {
                                 val track = tracks[0]
@@ -155,7 +163,7 @@ fun LibraryScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AlbumGroupItem(tracks: List<BeatmapEntity>, musicController: MusicController, onDelete: () -> Unit) {
+fun AlbumGroupItem(tracks: List<BeatmapEntity>, musicController: MusicController, onPlay: (BeatmapEntity) -> Unit, onDelete: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     val firstTrack = tracks[0]
     val dismissState = rememberDismissState(
@@ -234,7 +242,7 @@ fun AlbumGroupItem(tracks: List<BeatmapEntity>, musicController: MusicController
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { musicController.playSong(map) }
+                                .clickable { onPlay(map) }
                                 .padding(start = 66.dp, top = 8.dp, bottom = 8.dp, end = 8.dp), // Indented
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -251,7 +259,7 @@ fun AlbumGroupItem(tracks: List<BeatmapEntity>, musicController: MusicController
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SingleTrackItem(map: BeatmapEntity, musicController: MusicController, onDelete: () -> Unit) {
+fun SingleTrackItem(map: BeatmapEntity, musicController: MusicController, onPlay: () -> Unit, onDelete: () -> Unit) {
     val dismissState = rememberDismissState(
         confirmValueChange = {
             if (it == DismissValue.DismissedToStart) {
@@ -293,7 +301,7 @@ fun SingleTrackItem(map: BeatmapEntity, musicController: MusicController, onDele
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.surface)
-                    .clickable { musicController.playSong(map) }
+                    .clickable { onPlay() }
                     .padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {

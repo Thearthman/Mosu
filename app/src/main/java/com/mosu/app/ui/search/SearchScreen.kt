@@ -61,6 +61,7 @@ import com.mosu.app.data.repository.OsuRepository
 import com.mosu.app.domain.download.BeatmapDownloader
 import com.mosu.app.domain.download.DownloadState
 import com.mosu.app.domain.download.ZipExtractor
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -328,7 +329,16 @@ fun SearchScreen(
                                     scope.launch {
                                         val tracks = db.beatmapDao().getTracksForSet(map.id)
                                         if (tracks.isNotEmpty()) {
-                                            musicController.playSong(tracks[0])
+                                            // TODO: Ideally we should construct a playlist of all downloaded songs in the search results
+                                            // For now, let's just play this one song, or query all downloaded songs as context?
+                                            // Playing just this song for now to avoid complexity in fetching all tracks for all results
+                                            // User requested playlist system "defaults to shuffle". 
+                                            // If playing from search, maybe just shuffle all DOWNLOADED songs in the DB?
+                                            // Or shuffle filtered results?
+                                            
+                                            // Let's fetch all downloaded songs to use as playlist context
+                                            val allDownloaded = db.beatmapDao().getAllBeatmaps().first()
+                                            musicController.playSong(tracks[0], allDownloaded)
                                         }
                                     }
                                 }

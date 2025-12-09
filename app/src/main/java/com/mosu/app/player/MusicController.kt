@@ -47,25 +47,30 @@ class MusicController(context: Context) {
         }, MoreExecutors.directExecutor())
     }
 
-    fun playSong(beatmap: BeatmapEntity) {
+    fun playSong(selectedBeatmap: BeatmapEntity, playlist: List<BeatmapEntity> = listOf(selectedBeatmap)) {
         val controller = this.controller ?: return
         
-        val file = File(beatmap.audioPath)
-        if (!file.exists()) return
+        // Convert playlist to MediaItems
+        val mediaItems = playlist.map { beatmap ->
+            val file = File(beatmap.audioPath)
+            val metadata = MediaMetadata.Builder()
+                .setTitle(beatmap.title)
+                .setArtist(beatmap.artist)
+                .setArtworkUri(Uri.fromFile(File(beatmap.coverPath)))
+                .build()
 
-        val metadata = MediaMetadata.Builder()
-            .setTitle(beatmap.title)
-            .setArtist(beatmap.artist)
-            .setArtworkUri(Uri.fromFile(File(beatmap.coverPath)))
-            .build()
+            MediaItem.Builder()
+                .setUri(Uri.fromFile(file))
+                .setMediaId(beatmap.uid.toString())
+                .setMediaMetadata(metadata)
+                .build()
+        }
 
-        val mediaItem = MediaItem.Builder()
-            .setUri(Uri.fromFile(file))
-            .setMediaId(beatmap.uid.toString())
-            .setMediaMetadata(metadata)
-            .build()
+        // Find the index of the selected song
+        val startIndex = mediaItems.indexOfFirst { it.mediaId == selectedBeatmap.uid.toString() }.coerceAtLeast(0)
 
-        controller.setMediaItem(mediaItem)
+        controller.setMediaItems(mediaItems, startIndex, 0)
+        controller.shuffleModeEnabled = true // Default to shuffle
         controller.prepare()
         controller.play()
     }
@@ -77,6 +82,14 @@ class MusicController(context: Context) {
         } else {
             controller.play()
         }
+    }
+    
+    fun skipToNext() {
+        controller?.seekToNext()
+    }
+
+    fun skipToPrevious() {
+        controller?.seekToPrevious()
     }
 
     fun release() {

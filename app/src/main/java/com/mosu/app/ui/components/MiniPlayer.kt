@@ -14,6 +14,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -90,12 +92,22 @@ fun MiniPlayer(
                         )
                     }
 
+                    // Previous Button
+                    IconButton(onClick = { musicController.skipToPrevious() }) {
+                        Icon(Icons.Filled.SkipPrevious, contentDescription = "Previous")
+                    }
+
                     // Play/Pause Button
                     IconButton(onClick = { musicController.togglePlayPause() }) {
                         Icon(
                             imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Default.PlayArrow,
                             contentDescription = if (isPlaying) "Pause" else "Play"
                         )
+                    }
+
+                    // Next Button
+                    IconButton(onClick = { musicController.skipToNext() }) {
+                        Icon(Icons.Filled.SkipNext, contentDescription = "Next")
                     }
                 }
                 // Optional: Progress bar could go here
