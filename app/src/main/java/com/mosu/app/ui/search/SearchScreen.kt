@@ -11,17 +11,24 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.mosu.app.data.api.model.BeatmapsetCompact
@@ -49,16 +57,23 @@ import java.io.File
 @Composable
 fun SearchScreen(
     authCode: String?,
-    onLoginClick: () -> Unit,
     repository: OsuRepository,
-    db: AppDatabase
+    db: AppDatabase,
+    accessToken: String?,
+    clientId: String,
+    clientSecret: String,
+    onTokenReceived: (String) -> Unit
 ) {
-    var statusText by remember { mutableStateOf("Ready to Login") }
-    var accessToken by remember { mutableStateOf<String?>(null) }
+    var statusText by remember { mutableStateOf("") }
+    
+    // Search Query
+    var searchQuery by remember { mutableStateOf("") }
     
     // Search Results
     var searchResults by remember { mutableStateOf<List<BeatmapsetCompact>>(emptyList()) }
     var selectedGenreId by remember { mutableStateOf<Int?>(null) }
+    var currentCursor by remember { mutableStateOf<String?>(null) }
+    var isLoadingMore by remember { mutableStateOf(false) }
     
     // Download State Map (SetID -> State)
     // We use a simplified single download state for MVP, or map for multiple.
@@ -84,14 +99,65 @@ fun SearchScreen(
         )
 
         if (accessToken == null) {
-            Button(
-                onClick = onLoginClick,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Login with osu!")
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Not Logged In", style = MaterialTheme.typography.titleMedium)
+                    Text("Please go to the Profile tab to configure credentials and login.", style = MaterialTheme.typography.bodyMedium)
+                }
             }
             Text(text = statusText, modifier = Modifier.padding(top = 8.dp))
         } else {
+            // Search Bar
+            TextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp),
+                placeholder = { Text("Search by title or artist...") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = {
+                            searchQuery = ""
+                            // Refresh results without search query
+                            scope.launch {
+                                try {
+                                    val (results, cursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, null, null)
+                                    searchResults = results
+                                    currentCursor = cursor
+                                } catch (e: Exception) {
+                                    statusText = "Error: ${e.message}"
+                                }
+                            }
+                        }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Clear")
+                        }
+                    }
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(
+                    onSearch = {
+                        scope.launch {
+                            try {
+                                currentCursor = null
+                                val (results, cursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, null, searchQuery.trim())
+                                searchResults = results
+                                currentCursor = cursor
+                            } catch (e: Exception) {
+                                statusText = "Search Error: ${e.message}"
+                            }
+                        }
+                    }
+                ),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant
+                ),
+                shape = RoundedCornerShape(12.dp)
+            )
+            
             // Genre Filter
             Text(text = "Filter by Genre", style = MaterialTheme.typography.labelMedium)
             LazyRow(modifier = Modifier.padding(vertical = 8.dp)) {
@@ -99,9 +165,12 @@ fun SearchScreen(
                     Button(
                         onClick = {
                             selectedGenreId = if (selectedGenreId == id) null else id
+                            currentCursor = null // Reset cursor when changing genre
                             scope.launch {
                                 try {
-                                    searchResults = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId)
+                                    val (results, cursor) = repository.getPlayedBeatmaps(accessToken, selectedGenreId, null, searchQuery.trim().ifEmpty { null })
+                                    searchResults = results
+                                    currentCursor = cursor
                                 } catch(e: Exception) {
                                     statusText = "Error: ${e.message}"
                                 }
@@ -191,16 +260,34 @@ fun SearchScreen(
                 }
                 
                 // Pagination / Load More
-                if (searchResults.isNotEmpty()) {
+                if (searchResults.isNotEmpty() && currentCursor != null) {
                     item {
                         Button(
-                            onClick = { 
-                                // TODO: Implement Offset Pagination
-                                // Increment offset += 50 and append to list
+                            onClick = {
+                                scope.launch {
+                                    isLoadingMore = true
+                                    statusText = "Loading more..."
+                                    try {
+                                        val (moreResults, nextCursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, currentCursor, searchQuery.trim().ifEmpty { null })
+                                        if (moreResults.isNotEmpty()) {
+                                            searchResults = searchResults + moreResults
+                                            currentCursor = nextCursor
+                                            statusText = "Loaded ${moreResults.size} more results"
+                                        } else {
+                                            statusText = "No more results available"
+                                            currentCursor = null
+                                        }
+                                    } catch (e: Exception) {
+                                        statusText = "Load More Error: ${e.message}"
+                                    } finally {
+                                        isLoadingMore = false
+                                    }
+                                }
                             },
-                            modifier = Modifier.fillMaxWidth().padding(16.dp)
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            enabled = !isLoadingMore
                         ) {
-                            Text("Load More")
+                            Text(if (isLoadingMore) "Loading..." else "Load More")
                         }
                     }
                 }
@@ -211,16 +298,27 @@ fun SearchScreen(
             }
         }
 
-        // Auth Logic
+        // Auth Logic - Handle OAuth callback
         LaunchedEffect(authCode) {
-            if (authCode != null && accessToken == null) {
+            if (authCode != null && accessToken == null && clientId.isNotEmpty() && clientSecret.isNotEmpty()) {
                 try {
-                    val tokenResponse = repository.exchangeCodeForToken(authCode)
-                    accessToken = tokenResponse.accessToken
-                    // Initial fetch
-                    searchResults = repository.getPlayedBeatmaps(accessToken!!)
+                    val tokenResponse = repository.exchangeCodeForToken(authCode, clientId, clientSecret)
+                    onTokenReceived(tokenResponse.accessToken)
                 } catch (e: Exception) {
-                    statusText = "Login Error"
+                    statusText = "Login Error: ${e.message}"
+                }
+            }
+        }
+        
+        // Initial Load - Fetch results when logged in
+        LaunchedEffect(accessToken) {
+            if (accessToken != null && searchResults.isEmpty()) {
+                try {
+                    val (results, cursor) = repository.getPlayedBeatmaps(accessToken, null, null, null)
+                    searchResults = results
+                    currentCursor = cursor
+                } catch (e: Exception) {
+                    statusText = "Failed to load: ${e.message}"
                 }
             }
         }

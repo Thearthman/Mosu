@@ -8,18 +8,23 @@ import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -27,17 +32,18 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.mosu.app.data.SettingsManager
+import com.mosu.app.data.TokenManager
 import com.mosu.app.data.db.AppDatabase
 import com.mosu.app.data.repository.OsuRepository
 import com.mosu.app.player.MusicController
 import com.mosu.app.ui.library.LibraryScreen
+import com.mosu.app.ui.profile.ProfileScreen
 import com.mosu.app.ui.search.SearchScreen
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-    private val repository = OsuRepository()
-    private val clientId = "46495"
-    private val redirectUri = "mosu://callback"
-
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
@@ -46,20 +52,20 @@ class MainActivity : ComponentActivity() {
         val code = data?.getQueryParameter("code")
 
         val db = AppDatabase.getDatabase(this)
+        val repository = OsuRepository(db.searchCacheDao())
+        val redirectUri = "mosu://callback"
+        val tokenManager = TokenManager(this)
+        val settingsManager = SettingsManager(this)
 
         setContent {
             MaterialTheme {
                 MainScreen(
                     initialAuthCode = code,
-                    onLoginClick = {
-                        val intent = Intent(
-                            Intent.ACTION_VIEW,
-                            Uri.parse("https://osu.ppy.sh/oauth/authorize?client_id=$clientId&redirect_uri=$redirectUri&response_type=code&scope=public+identify")
-                        )
-                        startActivity(intent)
-                    },
                     repository = repository,
-                    db = db
+                    db = db,
+                    tokenManager = tokenManager,
+                    settingsManager = settingsManager,
+                    redirectUri = redirectUri
                 )
             }
         }
@@ -69,15 +75,33 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen(
     initialAuthCode: String?,
-    onLoginClick: () -> Unit,
     repository: OsuRepository,
-    db: AppDatabase
+    db: AppDatabase,
+    tokenManager: TokenManager,
+    settingsManager: SettingsManager,
+    redirectUri: String
 ) {
     val navController = rememberNavController()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     
     // Music Controller stays alive at MainScreen level
     val musicController = remember { MusicController(context) }
+    
+    // Access Token State (loaded from TokenManager or from OAuth)
+    val storedToken by tokenManager.accessToken.collectAsState(initial = null)
+    var accessToken by remember { mutableStateOf<String?>(null) }
+    
+    // OAuth Credentials from Settings
+    val clientId by settingsManager.clientId.collectAsState(initial = "")
+    val clientSecret by settingsManager.clientSecret.collectAsState(initial = "")
+    
+    // Initialize access token from storage
+    LaunchedEffect(storedToken) {
+        if (storedToken != null) {
+            accessToken = storedToken
+        }
+    }
     
     DisposableEffect(Unit) {
         onDispose { musicController.release() }
@@ -117,6 +141,20 @@ fun MainScreen(
                         }
                     }
                 )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Person, contentDescription = "Profile") },
+                    label = { Text("Profile") },
+                    selected = currentDestination == "profile",
+                    onClick = {
+                        navController.navigate("profile") {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                )
             }
         }
     ) { innerPadding ->
@@ -131,9 +169,38 @@ fun MainScreen(
             composable("search") {
                 SearchScreen(
                     authCode = initialAuthCode,
-                    onLoginClick = onLoginClick,
                     repository = repository,
-                    db = db
+                    db = db,
+                    accessToken = accessToken,
+                    clientId = clientId,
+                    clientSecret = clientSecret,
+                    onTokenReceived = { token ->
+                        scope.launch {
+                            accessToken = token
+                            tokenManager.saveToken(token)
+                        }
+                    }
+                )
+            }
+            composable("profile") {
+                ProfileScreen(
+                    accessToken = accessToken,
+                    repository = repository,
+                    db = db,
+                    tokenManager = tokenManager,
+                    settingsManager = settingsManager,
+                    onLoginClick = {
+                        if (clientId.isNotEmpty()) {
+                            val intent = Intent(
+                                Intent.ACTION_VIEW,
+                                Uri.parse("https://osu.ppy.sh/oauth/authorize?client_id=$clientId&redirect_uri=$redirectUri&response_type=code&scope=public+identify")
+                            )
+                            context.startActivity(intent)
+                        }
+                    },
+                    onLogout = {
+                        accessToken = null
+                    }
                 )
             }
         }

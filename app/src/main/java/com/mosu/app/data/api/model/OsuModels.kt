@@ -35,5 +35,6 @@ data class Covers(
 
 data class SearchResponse(
     @SerializedName("beatmapsets") val beatmapsets: List<BeatmapsetCompact>,
-    @SerializedName("total") val total: Int
+    @SerializedName("total") val total: Int,
+    @SerializedName("cursor_string") val cursorString: String? = null
 )
