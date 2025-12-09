@@ -185,6 +185,7 @@ fun MainScreen(
                     accessToken = accessToken,
                     clientId = clientId,
                     clientSecret = clientSecret,
+                    settingsManager = settingsManager,
                     onTokenReceived = { token ->
                         scope.launch {
                             accessToken = token

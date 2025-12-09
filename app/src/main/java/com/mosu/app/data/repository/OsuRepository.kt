@@ -37,18 +37,48 @@ class OsuRepository(private val searchCacheDao: SearchCacheDao? = null) {
         return api.getUserMostPlayed("Bearer $accessToken", userId)
     }
 
-    suspend fun getPlayedBeatmaps(accessToken: String, genreId: Int? = null, cursorString: String? = null, searchQuery: String? = null, filterMode: String = "played"): Pair<List<BeatmapsetCompact>, String?> {
+    suspend fun getPlayedBeatmaps(accessToken: String, genreId: Int? = null, cursorString: String? = null, searchQuery: String? = null, filterMode: String = "played", playedFilterMode: String = "url", userId: String? = null): Pair<List<BeatmapsetCompact>, String?> {
+        // If filterMode is "played" and playedFilterMode is "most_played", use getUserMostPlayed
+        if (filterMode == "played" && playedFilterMode == "most_played" && userId != null && cursorString == null) {
+            // Use most played data - note: this doesn't support pagination/cursor
+            val mostPlayedData = api.getUserMostPlayed("Bearer $accessToken", userId)
+            val beatmaps = mostPlayedData.map { it.beatmapset }
+            
+            // Apply genre filter if specified
+            val filtered = if (genreId != null) {
+                // Note: Genre filtering on most played data might be limited
+                beatmaps
+            } else {
+                beatmaps
+            }
+            
+            // Apply search query filter if specified
+            val searchFiltered = if (!searchQuery.isNullOrEmpty()) {
+                filtered.filter { 
+                    it.title.contains(searchQuery, ignoreCase = true) || 
+                    it.artist.contains(searchQuery, ignoreCase = true)
+                }
+            } else {
+                filtered
+            }
+            
+            return Pair(searchFiltered, null) // No cursor for most played
+        }
+        
+        // Otherwise use URL-based filtering (original logic)
         // Generate cache key (only cache first page without search query)
-        val cacheKey = "played_genre_${genreId ?: "all"}_query_${searchQuery ?: "none"}_mode_${filterMode}_initial"
+        val cacheKey = "played_genre_${genreId ?: "all"}_query_${searchQuery ?: "none"}_mode_${filterMode}_playedMode_${playedFilterMode}_initial"
         
         // Only use cache for initial load (no cursor) without search query
         if (cursorString == null && searchQuery.isNullOrEmpty()) {
             val cached = searchCacheDao?.getCachedResult(cacheKey)
             if (cached != null && (System.currentTimeMillis() - cached.cachedAt) < CACHE_TTL_MS) {
-                // Cache hit and fresh - note: we don't cache cursor, so this is only good for initial page
+                // Cache hit and fresh
                 val type = object : TypeToken<List<BeatmapsetCompact>>() {}.type
                 val results: List<BeatmapsetCompact> = gson.fromJson(cached.resultsJson, type)
-                return Pair(results, null) // Return cached results with null cursor (can't paginate from cache)
+                // Return with a dummy cursor to enable "Load More" button
+                // The actual cursor will be fetched when user clicks Load More
+                return Pair(results, "cached_placeholder")
             }
         }
         

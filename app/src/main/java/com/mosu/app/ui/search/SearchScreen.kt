@@ -40,6 +40,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -77,6 +78,7 @@ fun SearchScreen(
     accessToken: String?,
     clientId: String,
     clientSecret: String,
+    settingsManager: com.mosu.app.data.SettingsManager,
     onTokenReceived: (String) -> Unit,
     scrollToTop: Boolean = false,
     onScrolledToTop: () -> Unit = {}
@@ -88,6 +90,10 @@ fun SearchScreen(
     
     // Filter Mode: "played" or "all"
     var filterMode by remember { mutableStateOf("played") }
+    
+    // Played filter mode from settings
+    val playedFilterMode by settingsManager.playedFilterMode.collectAsState(initial = "url")
+    var userId by remember { mutableStateOf<String?>(null) }
     
     // Search Results
     var searchResults by remember { mutableStateOf<List<BeatmapsetCompact>>(emptyList()) }
@@ -187,7 +193,7 @@ fun SearchScreen(
                                 // Refresh results without search query
                                 scope.launch {
                                     try {
-                                        val (results, cursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, null, null, filterMode)
+                                        val (results, cursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, null, null, filterMode, playedFilterMode, userId)
                                         searchResults = results
                                         currentCursor = cursor
                                     } catch (e: Exception) {
@@ -207,7 +213,7 @@ fun SearchScreen(
                                 scope.launch {
                                     try {
                                         currentCursor = null
-                                        val (results, cursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, null, searchQuery.trim().ifEmpty { null }, filterMode)
+                                        val (results, cursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, null, searchQuery.trim().ifEmpty { null }, filterMode, playedFilterMode, userId)
                                         searchResults = results
                                         currentCursor = cursor
                                     } catch (e: Exception) {
@@ -241,7 +247,7 @@ fun SearchScreen(
                         scope.launch {
                             try {
                                 currentCursor = null
-                                val (results, cursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, null, searchQuery.trim(), filterMode)
+                                val (results, cursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, null, searchQuery.trim(), filterMode, playedFilterMode, userId)
                                 searchResults = results
                                 currentCursor = cursor
                             } catch (e: Exception) {
@@ -267,7 +273,7 @@ fun SearchScreen(
                                             currentCursor = null // Reset cursor when changing genre
                                             scope.launch {
                                                 try {
-                                                    val (results, cursor) = repository.getPlayedBeatmaps(accessToken, selectedGenreId, null, searchQuery.trim().ifEmpty { null }, filterMode)
+                                                    val (results, cursor) = repository.getPlayedBeatmaps(accessToken, selectedGenreId, null, searchQuery.trim().ifEmpty { null }, filterMode, playedFilterMode, userId)
                                                     searchResults = results
                                                     currentCursor = cursor
                                                 } catch(e: Exception) {
@@ -412,7 +418,7 @@ fun SearchScreen(
                                     isLoadingMore = true
                                     statusText = "Loading more..."
                                     try {
-                                        val (moreResults, nextCursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, currentCursor, searchQuery.trim().ifEmpty { null }, filterMode)
+                                        val (moreResults, nextCursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, if (currentCursor == "cached_placeholder") null else currentCursor, searchQuery.trim().ifEmpty { null }, filterMode, playedFilterMode, userId)
                                         if (moreResults.isNotEmpty()) {
                                             searchResults = searchResults + moreResults
                                             currentCursor = nextCursor
@@ -437,32 +443,39 @@ fun SearchScreen(
                 }
             }
             
-            // Auth Logic - Handle OAuth callback
-            LaunchedEffect(authCode) {
-                if (authCode != null && accessToken == null && clientId.isNotEmpty() && clientSecret.isNotEmpty()) {
-                    try {
-                        val tokenResponse = repository.exchangeCodeForToken(authCode, clientId, clientSecret)
-                        onTokenReceived(tokenResponse.accessToken)
-                    } catch (e: Exception) {
-                        statusText = "Login Error: ${e.message}"
-                    }
+        // Auth Logic - Handle OAuth callback
+        LaunchedEffect(authCode) {
+            if (authCode != null && accessToken == null && clientId.isNotEmpty() && clientSecret.isNotEmpty()) {
+                try {
+                    val tokenResponse = repository.exchangeCodeForToken(authCode, clientId, clientSecret)
+                    onTokenReceived(tokenResponse.accessToken)
+                    // Fetch user ID
+                    val user = repository.getMe(tokenResponse.accessToken)
+                    userId = user.id.toString()
+                } catch (e: Exception) {
+                    statusText = "Login Error: ${e.message}"
                 }
             }
-            
-            // Initial Load - Fetch results when logged in
-            LaunchedEffect(accessToken) {
-                if (accessToken != null && searchResults.isEmpty()) {
-                    try {
-                        val (results, cursor) = repository.getPlayedBeatmaps(accessToken, null, null, null, filterMode)
-                        searchResults = results
-                        currentCursor = cursor
-                    } catch (e: Exception) {
-                        statusText = "Failed to load: ${e.message}"
+        }
+        
+        // Initial Load - Fetch results when logged in
+        LaunchedEffect(accessToken) {
+            if (accessToken != null && searchResults.isEmpty()) {
+                try {
+                    if (userId == null) {
+                        val user = repository.getMe(accessToken)
+                        userId = user.id.toString()
                     }
+                    val (results, cursor) = repository.getPlayedBeatmaps(accessToken, null, null, null, filterMode, playedFilterMode, userId)
+                    searchResults = results
+                    currentCursor = cursor
+                } catch (e: Exception) {
+                    statusText = "Failed to load: ${e.message}"
                 }
             }
         }
     }
+}
 }
 
 

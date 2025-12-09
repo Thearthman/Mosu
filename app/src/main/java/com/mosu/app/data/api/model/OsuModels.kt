@@ -11,7 +11,8 @@ data class OsuTokenResponse(
 data class OsuUserCompact(
     @SerializedName("id") val id: Long,
     @SerializedName("username") val username: String,
-    @SerializedName("avatar_url") val avatarUrl: String
+    @SerializedName("avatar_url") val avatarUrl: String,
+    @SerializedName("is_supporter") val isSupporter: Boolean = false
 )
 
 data class BeatmapPlaycount(

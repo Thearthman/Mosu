@@ -1,0 +1,38 @@
+# Bug Fix
+> All good
+
+
+
+
+# UI improvement (implement 3 first)
+1. the "top bar" which is where the status bar of the phone sits, is now colored grey for some reason. Make it blend in.
+2. Add dark mode.
+3. remove black line below search bar. Also make genre bar sit closer to search bar and song list below, and make the genre buttons slightly smaller.
+
+
+# New Feature (implement 3,4 first)
+1. Settings page update
+    1. implement cache cleaning in settings.
+    ```2. Implement switch in settings that configures whether the played song is filtered by the literal url tag in the search url or the user's most played data. This is because most user without supporter status will not be able to search for their played songs directly through the url. When user don't have supporter, it locks to search by the most played songs directly from user data.```
+    3. implement sound balancing base on loudness normalization algorithms
+2. Add player view 
+    1. Add thin `collapsed player view` (like apple music) to the bottom of the page on top of the `navigation bar`. It should have `play/pause`, `next` and `previous` song buttons on the right side of it and a small cover on the left of it and the title of the song in the middle (can be clipped off by the play button if title too long)
+    2. When area outside of the buttons are click in the `collapsed play view`, it expands upward to fill the screen while the `navigation bar` retract downwards and hides. The cover photo expand and fade into the background of the page (at lower brightness and with a subtle blur). The controls are centered and at the lower 50% of the display. It should have `progress bar` that can be dragged, `play/pause`, `next`, `previous`, `single`/`loop`/`random`(they are a single button just like `played`/`all` button) and `mod`(see feature 5 below) buttons.
+    3. Implement `single`/`loop`/`random`(that loops) feature. As of current, loop/random applies to the whole library(because we don't have playlist yet).
+    4. Add `DT (double time)` and `NC (Night core)` sound effect `mod`. It is activated in player view. double time basically plays the song at 1.5 speed multiplier but keep the pitch of the song unchanged. Night core is double time but pitch is not processed, i.e., it is changed because the song is played at 1.5 times the original speed.
+3. Search page updates
+    1. When a song is downloaded is clicked in search page, it is played.
+    2. Implement filter by `favorite`(extracted from user's osu account data) (it should be a part of the `played`/`all` button). So now it alternates between `played`, `all`, `favorite`.
+4. Library update
+    1. Implement library filter. Same as the search genre filter, but applies to loop/loop random.
+5. Add Album page
+    1. Add `Album` page which you can create album and put music into it. has a create album button on the top right. page view default to all album spreading out. Two albums per row and extends downwards. You can click into albums and the view changes to the album title on top with a play button next to it, with song list below. You can add song here, base on the add button on the top right. or play the album which when using loop/random will only loop the songs in the album.
+
+
+
+# Bugs fixed
+```
+1. When removing song, the red bar persist to exist when the item to be deleted is not the bottom one after deleting it. This could be due to the "fill in" strategy after clearing out the deleted song's space. Also check the red bar disappear condition. Maybe refresh red bar condition after song is deleted.
+2. fix `load more` button not shown when exiting search page and coming back quickly. I suggest that we keep the load more data to cache so it's easier when searching intensively. Also check if this caching change fixes this problem, because the button eventually comes back, and I'm suspecting it is the caching check every 5mins that fixes the missing button.
+3. lock played filter to search from user's most play song data when user is not supporter feature from new feature No.9. (implement feature 1.2 to fix this bug)
+```

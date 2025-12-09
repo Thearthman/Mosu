@@ -38,6 +38,7 @@ fun ProfileScreen(
     var showSettingsDialog by remember { mutableStateOf(false) }
     val clientId by settingsManager.clientId.collectAsState(initial = "")
     val clientSecret by settingsManager.clientSecret.collectAsState(initial = "")
+    val playedFilterMode by settingsManager.playedFilterMode.collectAsState(initial = "url")
     
     val scope = rememberCoroutineScope()
 
@@ -164,6 +165,56 @@ fun ProfileScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     Button(onClick = { showSettingsDialog = true }) {
                         Text("Update Credentials")
+                    }
+                }
+            }
+            
+            // Played Filter Mode Setting
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Played Filter Mode", style = MaterialTheme.typography.titleMedium)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    val isSupporter = userInfo?.isSupporter ?: false
+                    val isLocked = !isSupporter
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Use URL-based filtering", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                if (isLocked) "Locked: Requires osu! supporter" else "Recommended for supporters",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (isLocked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                        Switch(
+                            checked = playedFilterMode == "url",
+                            onCheckedChange = { checked ->
+                                if (!isLocked) {
+                                    scope.launch {
+                                        settingsManager.savePlayedFilterMode(if (checked) "url" else "most_played")
+                                    }
+                                }
+                            },
+                            enabled = !isLocked
+                        )
+                    }
+                    
+                    if (isLocked) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Currently using: Most Played data",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }

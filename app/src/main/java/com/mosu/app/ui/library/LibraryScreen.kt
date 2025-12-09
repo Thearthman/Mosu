@@ -66,7 +66,10 @@ fun LibraryScreen(
         )
 
         LazyColumn {
-            items(groupedMaps.keys.toList()) { setId ->
+            items(
+                items = groupedMaps.keys.toList(),
+                key = { setId -> setId } // Add unique key for proper state management
+            ) { setId ->
                 val tracks = groupedMaps[setId] ?: emptyList()
                 if (tracks.isEmpty()) return@items
 

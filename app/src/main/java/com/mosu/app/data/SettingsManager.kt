@@ -16,6 +16,7 @@ class SettingsManager(private val context: Context) {
     companion object {
         private val CLIENT_ID_KEY = stringPreferencesKey("osu_client_id")
         private val CLIENT_SECRET_KEY = stringPreferencesKey("osu_client_secret")
+        private val PLAYED_FILTER_MODE_KEY = stringPreferencesKey("played_filter_mode") // "url" or "most_played"
     }
 
     val clientId: Flow<String> = context.settingsDataStore.data
@@ -27,11 +28,22 @@ class SettingsManager(private val context: Context) {
         .map { preferences ->
             preferences[CLIENT_SECRET_KEY] ?: ""
         }
+    
+    val playedFilterMode: Flow<String> = context.settingsDataStore.data
+        .map { preferences ->
+            preferences[PLAYED_FILTER_MODE_KEY] ?: "url" // Default to URL-based filtering
+        }
 
     suspend fun saveCredentials(clientId: String, clientSecret: String) {
         context.settingsDataStore.edit { preferences ->
             preferences[CLIENT_ID_KEY] = clientId
             preferences[CLIENT_SECRET_KEY] = clientSecret
+        }
+    }
+    
+    suspend fun savePlayedFilterMode(mode: String) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[PLAYED_FILTER_MODE_KEY] = mode
         }
     }
 
