@@ -37,9 +37,9 @@ class OsuRepository(private val searchCacheDao: SearchCacheDao? = null) {
         return api.getUserMostPlayed("Bearer $accessToken", userId)
     }
 
-    suspend fun getPlayedBeatmaps(accessToken: String, genreId: Int? = null, cursorString: String? = null, searchQuery: String? = null): Pair<List<BeatmapsetCompact>, String?> {
+    suspend fun getPlayedBeatmaps(accessToken: String, genreId: Int? = null, cursorString: String? = null, searchQuery: String? = null, filterMode: String = "played"): Pair<List<BeatmapsetCompact>, String?> {
         // Generate cache key (only cache first page without search query)
-        val cacheKey = "played_genre_${genreId ?: "all"}_query_${searchQuery ?: "none"}_initial"
+        val cacheKey = "played_genre_${genreId ?: "all"}_query_${searchQuery ?: "none"}_mode_${filterMode}_initial"
         
         // Only use cache for initial load (no cursor) without search query
         if (cursorString == null && searchQuery.isNullOrEmpty()) {
@@ -55,7 +55,7 @@ class OsuRepository(private val searchCacheDao: SearchCacheDao? = null) {
         // Fetch from API
         val response = api.searchBeatmapsets(
             authHeader = "Bearer $accessToken",
-            played = "played",
+            played = if (filterMode == "played") "played" else null,
             genre = genreId,
             cursorString = cursorString,
             query = searchQuery

@@ -1,12 +1,16 @@
 package com.mosu.app.ui.search
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -28,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -44,6 +49,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.mosu.app.data.api.model.BeatmapsetCompact
@@ -75,6 +81,9 @@ fun SearchScreen(
     
     // Search Query
     var searchQuery by remember { mutableStateOf("") }
+    
+    // Filter Mode: "played" or "all"
+    var filterMode by remember { mutableStateOf("played") }
     
     // Search Results
     var searchResults by remember { mutableStateOf<List<BeatmapsetCompact>>(emptyList()) }
@@ -129,24 +138,68 @@ fun SearchScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 8.dp),
-                placeholder = { Text("Search by title or artist...") },
+                placeholder = { 
+                    Text(
+                        "Search by title or artist...",
+                        style = MaterialTheme.typography.bodySmall
+                    ) 
+                },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
                 trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = {
-                            searchQuery = ""
-                            // Refresh results without search query
-                            scope.launch {
-                                try {
-                                    val (results, cursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, null, null)
-                                    searchResults = results
-                                    currentCursor = cursor
-                                } catch (e: Exception) {
-                                    statusText = "Error: ${e.message}"
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = {
+                                searchQuery = ""
+                                // Refresh results without search query
+                                scope.launch {
+                                    try {
+                                        val (results, cursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, null, null, filterMode)
+                                        searchResults = results
+                                        currentCursor = cursor
+                                    } catch (e: Exception) {
+                                        statusText = "Error: ${e.message}"
+                                    }
                                 }
+                            }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Clear")
                             }
-                        }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Clear")
+                        }
+                        
+                        // Filter Mode Toggle Button
+                        Button(
+                            onClick = {
+                                filterMode = if (filterMode == "played") "all" else "played"
+                                // Refresh results with new filter
+                                scope.launch {
+                                    try {
+                                        currentCursor = null
+                                        val (results, cursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, null, searchQuery.trim().ifEmpty { null }, filterMode)
+                                        searchResults = results
+                                        currentCursor = cursor
+                                    } catch (e: Exception) {
+                                        statusText = "Error: ${e.message}"
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .width(80.dp)
+                                .height(40.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (filterMode == "played") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = if (filterMode == "played") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer
+                            ),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = if (filterMode == "played") "Played" else "All",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                                textAlign = TextAlign.Center,
+                                maxLines = 1
+                            )
                         }
                     }
                 },
@@ -157,7 +210,7 @@ fun SearchScreen(
                         scope.launch {
                             try {
                                 currentCursor = null
-                                val (results, cursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, null, searchQuery.trim())
+                                val (results, cursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, null, searchQuery.trim(), filterMode)
                                 searchResults = results
                                 currentCursor = cursor
                             } catch (e: Exception) {
@@ -183,7 +236,7 @@ fun SearchScreen(
                             currentCursor = null // Reset cursor when changing genre
                             scope.launch {
                                 try {
-                                    val (results, cursor) = repository.getPlayedBeatmaps(accessToken, selectedGenreId, null, searchQuery.trim().ifEmpty { null })
+                                    val (results, cursor) = repository.getPlayedBeatmaps(accessToken, selectedGenreId, null, searchQuery.trim().ifEmpty { null }, filterMode)
                                     searchResults = results
                                     currentCursor = cursor
                                 } catch(e: Exception) {
@@ -327,7 +380,7 @@ fun SearchScreen(
                                     isLoadingMore = true
                                     statusText = "Loading more..."
                                     try {
-                                        val (moreResults, nextCursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, currentCursor, searchQuery.trim().ifEmpty { null })
+                                        val (moreResults, nextCursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, currentCursor, searchQuery.trim().ifEmpty { null }, filterMode)
                                         if (moreResults.isNotEmpty()) {
                                             searchResults = searchResults + moreResults
                                             currentCursor = nextCursor
@@ -369,7 +422,7 @@ fun SearchScreen(
         LaunchedEffect(accessToken) {
             if (accessToken != null && searchResults.isEmpty()) {
                 try {
-                    val (results, cursor) = repository.getPlayedBeatmaps(accessToken, null, null, null)
+                    val (results, cursor) = repository.getPlayedBeatmaps(accessToken, null, null, null, filterMode)
                     searchResults = results
                     currentCursor = cursor
                 } catch (e: Exception) {
