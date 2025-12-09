@@ -33,6 +33,7 @@ fun ProfileScreen(
 ) {
     var userInfo by remember { mutableStateOf<OsuUserCompact?>(null) }
     var totalDownloaded by remember { mutableStateOf(0) }
+    var isLoading by remember { mutableStateOf(false) }
     
     // Settings State
     var showSettingsDialog by remember { mutableStateOf(false) }
@@ -42,18 +43,27 @@ fun ProfileScreen(
     
     val scope = rememberCoroutineScope()
 
-    // Fetch user info on load
+    // Fetch user info only once when logged in (not on every navigation)
     LaunchedEffect(accessToken) {
-        if (accessToken != null) {
+        if (accessToken != null && userInfo == null && !isLoading) {
+            isLoading = true
             try {
                 userInfo = repository.getMe(accessToken)
-                val allMaps = db.beatmapDao().getAllBeatmaps()
-                allMaps.collect { maps ->
-                    totalDownloaded = maps.groupBy { it.beatmapSetId }.size
-                }
             } catch (e: Exception) {
                 // Handle error
+            } finally {
+                isLoading = false
             }
+        } else if (accessToken == null) {
+            // Reset on logout
+            userInfo = null
+        }
+    }
+    
+    // Fetch downloaded count (separate effect)
+    LaunchedEffect(Unit) {
+        db.beatmapDao().getAllBeatmaps().collect { maps ->
+            totalDownloaded = maps.groupBy { it.beatmapSetId }.size
         }
     }
 
@@ -182,6 +192,13 @@ fun ProfileScreen(
                     val isSupporter = userInfo?.isSupporter ?: false
                     val isLocked = !isSupporter
                     
+                    // Auto-set to most_played for non-supporters (only when user info is loaded)
+                    LaunchedEffect(userInfo) {
+                        if (userInfo != null && !isSupporter && playedFilterMode == "url") {
+                            settingsManager.savePlayedFilterMode("most_played")
+                        }
+                    }
+                    
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -196,7 +213,7 @@ fun ProfileScreen(
                             )
                         }
                         Switch(
-                            checked = playedFilterMode == "url",
+                            checked = if (isLocked) false else playedFilterMode == "url", // Force OFF position for non-supporters
                             onCheckedChange = { checked ->
                                 if (!isLocked) {
                                     scope.launch {
@@ -253,7 +270,10 @@ fun ProfileScreen(
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = androidx.compose.ui.graphics.Color(0xFFFF3B30), // Bright red
+                    contentColor = androidx.compose.ui.graphics.Color.White
+                )
             ) {
                 Icon(Icons.Default.ExitToApp, contentDescription = "Logout")
                 Spacer(modifier = Modifier.width(8.dp))

@@ -53,6 +53,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.mosu.app.data.api.model.BeatmapsetCompact
@@ -90,15 +91,28 @@ fun SearchScreen(
     // Search Query
     var searchQuery by remember { mutableStateOf("") }
     
-    // Filter Mode: "played", "all", or "favorite"
-    var filterMode by remember { mutableStateOf("played") }
-    
     // Played filter mode from settings
     val playedFilterMode by settingsManager.playedFilterMode.collectAsState(initial = "url")
+    
+    // Filter Mode: Default depends on playedFilterMode (url -> "played", most_played -> "favorite")
+    var filterMode by remember { mutableStateOf(if (playedFilterMode == "url") "played" else "favorite") }
     var userId by remember { mutableStateOf<String?>(null) }
+    var isSupporter by remember { mutableStateOf(false) } // Default to false (safer for non-supporters)
+    
+    // Update filterMode when playedFilterMode changes (from Profile settings)
+    LaunchedEffect(playedFilterMode, isSupporter) {
+        // When switching to URL mode (supporter enabled it), default to "played"
+        // When switching to most_played mode (non-supporter or supporter disabled it), default to "favorite"
+        if (playedFilterMode == "url" && isSupporter) {
+            filterMode = "played"
+        } else if (playedFilterMode == "most_played" && !isSupporter) {
+            filterMode = "favorite"
+        }
+    }
     
     // Search Results
     var searchResults by remember { mutableStateOf<List<BeatmapsetCompact>>(emptyList()) }
+    var searchResultsMetadata by remember { mutableStateOf<Map<Long, Pair<Int, Int>>>(emptyMap()) } // beatmapId -> (rank, playcount)
     var selectedGenreId by remember { mutableStateOf<Int?>(null) }
     var currentCursor by remember { mutableStateOf<String?>(null) }
     var isLoadingMore by remember { mutableStateOf(false) }
@@ -137,16 +151,16 @@ fun SearchScreen(
         2 to "Game", 9 to "Hip Hop", 11 to "Metal", 12 to "Classical",
         13 to "Folk", 14 to "Jazz", 7 to "Novelty", 6 to "Other"
     )
-
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+    
+    Column(modifier = Modifier.fillMaxSize()) {
         Text(
             text = "Search",
             style = MaterialTheme.typography.displayMedium,
-            modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
+            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 16.dp)
         )
 
         if (accessToken == null) {
-            Card(modifier = Modifier.fillMaxWidth()) {
+            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Not Logged In", style = MaterialTheme.typography.titleMedium)
                     Text("Please go to the Profile tab to configure credentials and login.", style = MaterialTheme.typography.bodyMedium)
@@ -161,6 +175,18 @@ fun SearchScreen(
                 }
             }
         } else {
+            // Sort results by rank if using most_played mode
+            // Force sort by rank to fix ordering issues
+            val sortedResults = remember(searchResults, searchResultsMetadata) {
+                if (searchResultsMetadata.isNotEmpty()) {
+                    searchResults.sortedBy { beatmap ->
+                        searchResultsMetadata[beatmap.id]?.first ?: Int.MAX_VALUE
+                    }
+                } else {
+                    searchResults
+                }
+            }
+            
             // Collapsible header with search bar and genre filter
             LazyColumn(
                 state = listState,
@@ -168,7 +194,7 @@ fun SearchScreen(
             ) {
                 // Header: Search bar and Genre filter
                 item {
-                    Column {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
                         // Search Bar
                         TextField(
                 value = searchQuery,
@@ -194,9 +220,10 @@ fun SearchScreen(
                                 // Refresh results without search query
                                 scope.launch {
                                     try {
-                                        val (results, cursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, null, null, filterMode, playedFilterMode, userId)
-                                        searchResults = results
-                                        currentCursor = cursor
+                                        val result = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, null, null, filterMode, playedFilterMode, userId, isSupporter)
+                                        searchResults = result.beatmaps
+                                        currentCursor = result.cursor
+                                        searchResultsMetadata = result.metadata
                                     } catch (e: Exception) {
                                         statusText = "Error: ${e.message}"
                                     }
@@ -218,9 +245,10 @@ fun SearchScreen(
                                 scope.launch {
                                     try {
                                         currentCursor = null
-                                        val (results, cursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, null, searchQuery.trim().ifEmpty { null }, filterMode, playedFilterMode, userId)
-                                        searchResults = results
-                                        currentCursor = cursor
+                                        val result = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, null, searchQuery.trim().ifEmpty { null }, filterMode, playedFilterMode, userId, isSupporter)
+                                        searchResults = result.beatmaps
+                                        currentCursor = result.cursor
+                                        searchResultsMetadata = result.metadata
                                     } catch (e: Exception) {
                                         statusText = "Error: ${e.message}"
                                     }
@@ -264,9 +292,10 @@ fun SearchScreen(
                         scope.launch {
                             try {
                                 currentCursor = null
-                                val (results, cursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, null, searchQuery.trim(), filterMode, playedFilterMode, userId)
-                                searchResults = results
-                                currentCursor = cursor
+                                val result = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, null, searchQuery.trim(), filterMode, playedFilterMode, userId, isSupporter)
+                                searchResults = result.beatmaps
+                                currentCursor = result.cursor
+                                        searchResultsMetadata = result.metadata
                             } catch (e: Exception) {
                                 statusText = "Search Error: ${e.message}"
                             }
@@ -283,9 +312,11 @@ fun SearchScreen(
                 shape = RoundedCornerShape(12.dp)
                             )
                             
-                            // Genre Filter
-                            Text(text = "Filter by Genre", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
-                            LazyRow(modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)) {
+                            // Genre Filter (hide when using most_played mode)
+                            val usingMostPlayed = searchResultsMetadata.isNotEmpty()
+                            if (!usingMostPlayed) {
+                                Text(text = "Filter by Genre", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
+                                LazyRow(modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)) {
                                 items(genres) { (id, name) ->
                                     Button(
                                         onClick = {
@@ -312,13 +343,23 @@ fun SearchScreen(
                                     }
                                 }
                             }
+                        } else {
+                            // Show info text when genre filter is hidden for most_played
+                            Text(
+                                text = "Genre filter not available in Most Played view",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+                            )
                         }
                     }
+                }
                 
                 // Search Results
-                items(searchResults) { map ->
+                items(sortedResults, key = { it.id }) { map ->
                     val downloadProgress = downloadStates[map.id]
                     val isDownloaded = downloadedBeatmapSetIds.contains(map.id)
+                    val metadata = searchResultsMetadata[map.id] // (rank, playcount) or null
                     
                     Row(
                         modifier = Modifier
@@ -329,13 +370,6 @@ fun SearchScreen(
                                     scope.launch {
                                         val tracks = db.beatmapDao().getTracksForSet(map.id)
                                         if (tracks.isNotEmpty()) {
-                                            // TODO: Ideally we should construct a playlist of all downloaded songs in the search results
-                                            // For now, let's just play this one song, or query all downloaded songs as context?
-                                            // Playing just this song for now to avoid complexity in fetching all tracks for all results
-                                            // User requested playlist system "defaults to shuffle". 
-                                            // If playing from search, maybe just shuffle all DOWNLOADED songs in the DB?
-                                            // Or shuffle filtered results?
-                                            
                                             // Let's fetch all downloaded songs to use as playlist context
                                             val allDownloaded = db.beatmapDao().getAllBeatmaps().first()
                                             musicController.playSong(tracks[0], allDownloaded)
@@ -343,9 +377,24 @@ fun SearchScreen(
                                     }
                                 }
                             }
-                            .padding(vertical = 8.dp),
+                            .padding(vertical = 8.dp)
+                            // Apply horizontal padding: 0 for most_played (full width), 16dp for others
+                            .padding(horizontal = if (metadata != null) 0.dp else 16.dp)
+                            // Add extra right padding for most_played
+                            .padding(end = if (metadata != null) 8.dp else 0.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // Ranking number (for most_played mode)
+                        if (metadata != null) {
+                            Text(
+                                text = "#${metadata.first}",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.width(48.dp),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                        
                         // Cover Image
                         AsyncImage(
                             model = map.covers.listUrl,
@@ -383,6 +432,25 @@ fun SearchScreen(
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                 }
+                            }
+                        }
+                        
+                        // Playcount (for most_played mode)
+                        if (metadata != null) {
+                            Column(
+                                horizontalAlignment = Alignment.End,
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                Text(
+                                    text = "${metadata.second}",
+                                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "plays",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.secondary
+                                )
                             }
                         }
                         
@@ -457,11 +525,12 @@ fun SearchScreen(
                                     isLoadingMore = true
                                     statusText = "Loading more..."
                                     try {
-                                        val (moreResults, nextCursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, currentCursor, searchQuery.trim().ifEmpty { null }, filterMode, playedFilterMode, userId)
-                                        if (moreResults.isNotEmpty()) {
-                                            searchResults = searchResults + moreResults
-                                            currentCursor = nextCursor
-                                            statusText = "Loaded ${moreResults.size} more results"
+                                        val result = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, currentCursor, searchQuery.trim().ifEmpty { null }, filterMode, playedFilterMode, userId, isSupporter)
+                                        if (result.beatmaps.isNotEmpty()) {
+                                            searchResults = searchResults + result.beatmaps
+                                            currentCursor = result.cursor
+                                            searchResultsMetadata = searchResultsMetadata + result.metadata
+                                            statusText = "Loaded ${result.beatmaps.size} more results"
                                         } else {
                                             statusText = "No more results available"
                                             currentCursor = null
@@ -497,17 +566,34 @@ fun SearchScreen(
                 }
             }
             
-        // Initial Load - Fetch results when logged in
-        LaunchedEffect(accessToken, filterMode) {
+        // Fetch user info when access token changes (login/logout)
+        LaunchedEffect(accessToken) {
             if (accessToken != null) {
                 try {
-                    if (userId == null) {
-                        val user = repository.getMe(accessToken)
-                        userId = user.id.toString()
-                    }
-                    val (results, cursor) = repository.getPlayedBeatmaps(accessToken, null, null, null, filterMode, playedFilterMode, userId)
-                    searchResults = results
-                    currentCursor = cursor
+                    val user = repository.getMe(accessToken)
+                    userId = user.id.toString()
+                    isSupporter = user.isSupporter ?: false
+                } catch (e: Exception) {
+                    statusText = "Failed to fetch user info: ${e.message}"
+                    isSupporter = false // Default to non-supporter on error
+                }
+            } else {
+                // Reset state on logout
+                userId = null
+                isSupporter = false
+                searchResults = emptyList()
+                searchResultsMetadata = emptyMap()
+            }
+        }
+            
+        // Initial Load - Fetch results when logged in
+        LaunchedEffect(accessToken, filterMode, userId) {
+            if (accessToken != null && userId != null) {
+                try {
+                    val result = repository.getPlayedBeatmaps(accessToken, null, null, null, filterMode, playedFilterMode, userId, isSupporter)
+                    searchResults = result.beatmaps
+                    currentCursor = result.cursor
+                    searchResultsMetadata = result.metadata
                 } catch (e: Exception) {
                     statusText = "Failed to load: ${e.message}"
                 }

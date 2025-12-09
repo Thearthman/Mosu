@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import com.mosu.app.ui.theme.MosuTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -62,7 +63,7 @@ class MainActivity : ComponentActivity() {
         val settingsManager = SettingsManager(this)
 
         setContent {
-            MaterialTheme {
+            MosuTheme {
                 MainScreen(
                     initialAuthCode = code,
                     repository = repository,

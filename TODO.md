@@ -6,9 +6,9 @@
 
 # UI improvement (implement 3 first)
 1. the "top bar" which is where the status bar of the phone sits, is now colored grey for some reason. Make it blend in.
-2. Add dark mode.
+```2. Add dark mode.```
 ```3. remove black line below search bar. Also make genre bar sit closer to search bar and song list below, and make the genre buttons slightly smaller.```
-
+4. add most-played view also to support support's search page defaults to contain all 4 search methods.
 
 # New Feature 
 1. Settings page update
@@ -16,17 +16,17 @@
     ```2. Implement switch in settings that configures whether the played song is filtered by the literal url tag in the search url or the user's most played data. This is because most user without supporter status will not be able to search for their played songs directly through the url. When user don't have supporter, it locks to search by the most played songs directly from user data.```
     3. implement sound balancing base on loudness normalization algorithms
 2. Add player view 
-    1. Add thin `collapsed player view` (like apple music) to the bottom of the page on top of the `navigation bar`. It should have `play/pause`, `next` and `previous` song buttons on the right side of it and a small cover on the left of it and the title of the song in the middle (can be clipped off by the play button if title too long)
+    ```1. Add thin `collapsed player view` (like apple music) to the bottom of the page on top of the `navigation bar`. It should have `play/pause`, `next` and `previous` song buttons on the right side of it and a small cover on the left of it and the title of the song in the middle (can be clipped off by the play button if title too long)```
     2. When area outside of the buttons are click in the `collapsed play view`, it expands upward to fill the screen while the `navigation bar` retract downwards and hides. The cover photo expand and fade into the background of the page (at lower brightness and with a subtle blur). The controls are centered and at the lower 50% of the display. It should have `progress bar` that can be dragged, `play/pause`, `next`, `previous`, `single`/`loop`/`random`(they are a single button just like `played`/`all` button) and `mod`(see feature 5 below) buttons.
     3. Add `DT (double time)` and `NC (Night core)` sound effect `mod`. It is activated in player view. double time basically plays the song at 1.5 speed multiplier but keep the pitch of the song unchanged. Night core is double time but pitch is not processed, i.e., it is changed because the song is played at 1.5 times the original speed.
 3. Playlist feature
-    1. Implement `single`/`loop`/`random`(that loops) feature. As of current, the playlist is the whole library, i.e., loop/random applies to the whole library. The library genre feature should work here to change the playlist.
+    ```1. Implement `single`/`loop`/`random`(that loops) feature. As of current, the playlist is the whole library, i.e., loop/random applies to the whole library. The library genre feature should work here to change the playlist.```
 4. Search page updates
-    ```1. When a song is downloaded is clicked in search page, it is played.
-    2. Implement filter by `favorite`(extracted from user's osu account data) (it should be a part of the `played`/`all` button). So now it alternates between `played`, `all`, `favorite`.```
+    ```1. When a song is downloaded is clicked in search page, it is played.```
+    ```2. Implement filter by `favorite`(extracted from user's osu account data) (it should be a part of the `played`/`all` button). So now it alternates between `played`, `all`, `favorite`.```
 5. Library update
     ```1. Implement library filter. Same as the search genre filter.``` 
-    2. waiting for loop implementation to make the library genre filter applies to `loop`/`random` playlist.
+    ```2. waiting for loop implementation to make the library genre filter applies to `loop`/`random` playlist.```
 6. Add Album page
     1. Add `Album` page which you can create album and put music into it. has a create album button on the top right. page view default to all album spreading out. Two albums per row and extends downwards. You can click into albums and the view changes to the album title on top with a play button next to it, with song list below. You can add song here, base on the add button on the top right. or play the album which when using loop/random will only loop the songs in the album.
 

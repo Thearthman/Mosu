@@ -37,32 +37,69 @@ class OsuRepository(private val searchCacheDao: SearchCacheDao? = null) {
         return api.getUserMostPlayed("Bearer $accessToken", userId)
     }
 
-    suspend fun getPlayedBeatmaps(accessToken: String, genreId: Int? = null, cursorString: String? = null, searchQuery: String? = null, filterMode: String = "played", playedFilterMode: String = "url", userId: String? = null): Pair<List<BeatmapsetCompact>, String?> {
-        // If filterMode is "played" and playedFilterMode is "most_played", use getUserMostPlayed
-        if (filterMode == "played" && playedFilterMode == "most_played" && userId != null && cursorString == null) {
+    data class PlayedBeatmapsResult(
+        val beatmaps: List<BeatmapsetCompact>,
+        val cursor: String?,
+        val metadata: Map<Long, Pair<Int, Int>> = emptyMap() // beatmapId -> (rank, playcount) for most_played
+    )
+    
+    suspend fun getPlayedBeatmaps(
+        accessToken: String, 
+        genreId: Int? = null, 
+        cursorString: String? = null, 
+        searchQuery: String? = null, 
+        filterMode: String = "played", 
+        playedFilterMode: String = "url", 
+        userId: String? = null,
+        isSupporter: Boolean = true // Assume supporter unless specified
+    ): PlayedBeatmapsResult {
+        // Auto-fallback: If non-supporter tries "played" filter with URL mode, use most_played endpoint
+        val effectivePlayedMode = if (filterMode == "played" && playedFilterMode == "url" && !isSupporter) {
+            "most_played" // Force most_played for non-supporters
+        } else {
+            playedFilterMode
+        }
+        
+        // If filterMode is "played" and effective mode is "most_played", use getUserMostPlayed
+        if (filterMode == "played" && effectivePlayedMode == "most_played" && userId != null && cursorString == null) {
             // Use most played data - note: this doesn't support pagination/cursor
-            val mostPlayedData = api.getUserMostPlayed("Bearer $accessToken", userId)
-            val beatmaps = mostPlayedData.map { it.beatmapset }
+            val mostPlayedData = api.getUserMostPlayed("Bearer $accessToken", userId, limit = 100) // Get top 100
             
-            // Apply genre filter if specified
-            val filtered = if (genreId != null) {
-                // Note: Genre filtering on most played data might be limited
-                beatmaps
-            } else {
-                beatmaps
+            // Group by song title (to combine same songs from different mappers + different difficulties)
+            val groupedData = mostPlayedData.groupBy { it.beatmapset.title }
+            val deduplicatedData = groupedData.map { (title, items) ->
+                val firstItem = items.first() // Keep first (highest individual rank) for beatmapset data
+                val totalPlaycount = items.sumOf { it.count } // Sum all playcounts across all difficulties and mappers
+                BeatmapPlaycount(
+                    beatmapId = firstItem.beatmapId,
+                    count = totalPlaycount,
+                    beatmapset = firstItem.beatmapset
+                )
             }
             
+            // Sort by total playcount descending
+            val sortedData = deduplicatedData.sortedByDescending { it.count }
+            
+            // Build metadata map with ranking and summed playcount
+            val metadata = mutableMapOf<Long, Pair<Int, Int>>()
+            sortedData.forEachIndexed { index, item ->
+                metadata[item.beatmapset.id] = Pair(index + 1, item.count) // rank (1-based), summed playcount
+            }
+            
+            val beatmaps = sortedData.map { it.beatmapset }
+            
+            // Genre filter is NOT applied for most_played (UI should hide it)
             // Apply search query filter if specified
             val searchFiltered = if (!searchQuery.isNullOrEmpty()) {
-                filtered.filter { 
+                beatmaps.filter { 
                     it.title.contains(searchQuery, ignoreCase = true) || 
                     it.artist.contains(searchQuery, ignoreCase = true)
                 }
             } else {
-                filtered
+                beatmaps
             }
             
-            return Pair(searchFiltered, null) // No cursor for most played
+            return PlayedBeatmapsResult(searchFiltered, null, metadata) // No cursor for most played
         }
         
         // Otherwise use URL-based filtering (original logic)
@@ -77,7 +114,7 @@ class OsuRepository(private val searchCacheDao: SearchCacheDao? = null) {
                 val type = object : TypeToken<List<BeatmapsetCompact>>() {}.type
                 val results: List<BeatmapsetCompact> = gson.fromJson(cached.resultsJson, type)
                 // Return cached results WITH cached cursor
-                return Pair(results, cached.cursorString)
+                return PlayedBeatmapsResult(results, cached.cursorString)
             }
         }
         
@@ -105,7 +142,7 @@ class OsuRepository(private val searchCacheDao: SearchCacheDao? = null) {
             }
         }
         
-        return Pair(response.beatmapsets, response.cursorString)
+        return PlayedBeatmapsResult(response.beatmapsets, response.cursorString)
     }
 }
 
