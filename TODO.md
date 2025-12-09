@@ -7,7 +7,7 @@
 # UI improvement (implement 3 first)
 1. the "top bar" which is where the status bar of the phone sits, is now colored grey for some reason. Make it blend in.
 2. Add dark mode.
-3. remove black line below search bar. Also make genre bar sit closer to search bar and song list below, and make the genre buttons slightly smaller.
+```3. remove black line below search bar. Also make genre bar sit closer to search bar and song list below, and make the genre buttons slightly smaller.```
 
 
 # New Feature (implement 3,4 first)
@@ -24,7 +24,8 @@
     1. When a song is downloaded is clicked in search page, it is played.
     2. Implement filter by `favorite`(extracted from user's osu account data) (it should be a part of the `played`/`all` button). So now it alternates between `played`, `all`, `favorite`.
 4. Library update
-    1. Implement library filter. Same as the search genre filter, but applies to loop/loop random.
+    ```1. Implement library filter. Same as the search genre filter.``` 
+    2. waiting for loop implementation to make the library genre filter applies to `loop`/`random` playlist.
 5. Add Album page
     1. Add `Album` page which you can create album and put music into it. has a create album button on the top right. page view default to all album spreading out. Two albums per row and extends downwards. You can click into albums and the view changes to the album title on top with a play button next to it, with song list below. You can add song here, base on the add button on the top right. or play the album which when using loop/random will only loop the songs in the album.
 
@@ -35,4 +36,5 @@
 1. When removing song, the red bar persist to exist when the item to be deleted is not the bottom one after deleting it. This could be due to the "fill in" strategy after clearing out the deleted song's space. Also check the red bar disappear condition. Maybe refresh red bar condition after song is deleted.
 2. fix `load more` button not shown when exiting search page and coming back quickly. I suggest that we keep the load more data to cache so it's easier when searching intensively. Also check if this caching change fixes this problem, because the button eventually comes back, and I'm suspecting it is the caching check every 5mins that fixes the missing button.
 3. lock played filter to search from user's most play song data when user is not supporter feature from new feature No.9. (implement feature 1.2 to fix this bug)
+4. beatmaps have cover images in subdirectories (like sb/bg.jpg), but the extractor isn't handling these paths correctly.
 ```

@@ -76,9 +76,8 @@ class OsuRepository(private val searchCacheDao: SearchCacheDao? = null) {
                 // Cache hit and fresh
                 val type = object : TypeToken<List<BeatmapsetCompact>>() {}.type
                 val results: List<BeatmapsetCompact> = gson.fromJson(cached.resultsJson, type)
-                // Return with a dummy cursor to enable "Load More" button
-                // The actual cursor will be fetched when user clicks Load More
-                return Pair(results, "cached_placeholder")
+                // Return cached results WITH cached cursor
+                return Pair(results, cached.cursorString)
             }
         }
         
@@ -88,14 +87,19 @@ class OsuRepository(private val searchCacheDao: SearchCacheDao? = null) {
             played = if (filterMode == "played") "played" else null,
             genre = genreId,
             cursorString = cursorString,
-            query = searchQuery
+            query = searchQuery,
+            status = if (filterMode == "favorite") "favourites" else null
         )
         
         // Save to cache only for initial load without search
         if (cursorString == null && searchQuery.isNullOrEmpty()) {
             searchCacheDao?.let {
                 val json = gson.toJson(response.beatmapsets)
-                it.insertCache(SearchCacheEntity(queryKey = cacheKey, resultsJson = json))
+                it.insertCache(SearchCacheEntity(
+                    queryKey = cacheKey,
+                    resultsJson = json,
+                    cursorString = response.cursorString // Cache the cursor too!
+                ))
                 // Clean up old cache entries
                 it.clearExpired(System.currentTimeMillis() - CACHE_TTL_MS)
             }

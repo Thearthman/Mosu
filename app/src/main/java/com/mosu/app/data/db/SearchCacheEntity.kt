@@ -8,6 +8,7 @@ data class SearchCacheEntity(
     @PrimaryKey
     val queryKey: String, // e.g., "played_genre_10"
     val resultsJson: String, // Serialized list of BeatmapsetCompact
+    val cursorString: String? = null, // Cache the cursor for pagination
     val cachedAt: Long = System.currentTimeMillis()
 )
 

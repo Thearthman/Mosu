@@ -186,6 +186,7 @@ fun MainScreen(
                     clientId = clientId,
                     clientSecret = clientSecret,
                     settingsManager = settingsManager,
+                    musicController = musicController,
                     onTokenReceived = { token ->
                         scope.launch {
                             accessToken = token

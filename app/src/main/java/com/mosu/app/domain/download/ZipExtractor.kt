@@ -53,16 +53,30 @@ class ZipExtractor(private val context: Context) {
                             uniqueAudioFiles.add(metadata.audioFilename)
                             
                             // Extract Audio
-                            val audioEntry = entriesList.find { it.name.equals(metadata.audioFilename, ignoreCase = true) }
+                            val audioEntry = entriesList.find { entry ->
+                                val entryPath = entry.name.replace("\\", "/")
+                                val audioPath = metadata.audioFilename.replace("\\", "/")
+                                entryPath.equals(audioPath, ignoreCase = true)
+                            }
                             var extractedAudio: File? = null
                             
                             if (audioEntry != null) {
-                                extractedAudio = File(outputDir, metadata.audioFilename)
+                                // Extract to flat structure (remove subdirectories)
+                                val flatFilename = audioEntry.name.replace("\\", "/").substringAfterLast("/")
+                                extractedAudio = File(outputDir, flatFilename)
+                                
                                 if (!extractedAudio.exists()) {
-                                    zip.getInputStream(audioEntry).use { input ->
-                                        FileOutputStream(extractedAudio).use { output -> input.copyTo(output) }
+                                    try {
+                                        zip.getInputStream(audioEntry).use { input ->
+                                            FileOutputStream(extractedAudio).use { output -> input.copyTo(output) }
+                                        }
+                                    } catch (e: Exception) {
+                                        Log.w("ZipExtractor", "Failed to extract audio: ${audioEntry.name}", e)
+                                        extractedAudio = null
                                     }
                                 }
+                            } else {
+                                Log.w("ZipExtractor", "Audio file not found in zip: ${metadata.audioFilename}")
                             }
 
                             // Extract Background
@@ -71,30 +85,57 @@ class ZipExtractor(private val context: Context) {
                             val bgName = metadata.backgroundFilename
                             
                             if (bgName != null) {
-                                val bgEntry = entriesList.find { it.name.equals(bgName, ignoreCase = true) }
+                                // Handle subdirectories - find entry with matching filename
+                                val bgEntry = entriesList.find { entry ->
+                                    // Normalize paths for comparison
+                                    val entryPath = entry.name.replace("\\", "/")
+                                    val bgPath = bgName.replace("\\", "/")
+                                    entryPath.equals(bgPath, ignoreCase = true)
+                                }
+                                
                                 if (bgEntry != null) {
-                                    extractedCover = File(outputDir, bgName)
+                                    // Extract to flat structure (remove subdirectories)
+                                    val flatFilename = bgEntry.name.replace("\\", "/").substringAfterLast("/")
+                                    extractedCover = File(outputDir, flatFilename)
+                                    
                                     if (!extractedCover.exists()) {
-                                        zip.getInputStream(bgEntry).use { input ->
-                                            FileOutputStream(extractedCover).use { output -> input.copyTo(output) }
+                                        try {
+                                            zip.getInputStream(bgEntry).use { input ->
+                                                FileOutputStream(extractedCover).use { output -> input.copyTo(output) }
+                                            }
+                                        } catch (e: Exception) {
+                                            Log.w("ZipExtractor", "Failed to extract cover: ${bgEntry.name}", e)
+                                            extractedCover = null
                                         }
                                     }
+                                } else {
+                                    Log.w("ZipExtractor", "Background file not found in zip: $bgName")
                                 }
                             }
                             
-                            // If no BG in .osu, fallback to heuristic
-                            if (extractedCover == null) {
-                                val fallbackEntry = entriesList.find { 
-                                    val n = it.name.lowercase()
-                                    (n.endsWith(".jpg") || n.endsWith(".png")) && 
-                                    (n.contains("bg") || n.contains("background"))
-                                } ?: entriesList.find { it.name.endsWith(".jpg") || it.name.endsWith(".png") }
+                            // If no BG in .osu or extraction failed, fallback to heuristic
+                            if (extractedCover == null || !extractedCover.exists()) {
+                                val fallbackEntry = entriesList.find { entry ->
+                                    val n = entry.name.lowercase().replace("\\", "/")
+                                    !entry.isDirectory &&
+                                    (n.endsWith(".jpg") || n.endsWith(".png") || n.endsWith(".jpeg")) && 
+                                    (n.contains("bg") || n.contains("background") || n.contains("cover"))
+                                } ?: entriesList.find { entry ->
+                                    val n = entry.name.lowercase()
+                                    !entry.isDirectory && (n.endsWith(".jpg") || n.endsWith(".png") || n.endsWith(".jpeg"))
+                                }
                                 
                                 if (fallbackEntry != null) {
-                                    extractedCover = File(outputDir, fallbackEntry.name)
+                                    val flatFilename = fallbackEntry.name.replace("\\", "/").substringAfterLast("/")
+                                    extractedCover = File(outputDir, flatFilename)
                                     if (!extractedCover.exists()) {
-                                        zip.getInputStream(fallbackEntry).use { input ->
-                                            FileOutputStream(extractedCover).use { output -> input.copyTo(output) }
+                                        try {
+                                            zip.getInputStream(fallbackEntry).use { input ->
+                                                FileOutputStream(extractedCover).use { output -> input.copyTo(output) }
+                                            }
+                                        } catch (e: Exception) {
+                                            Log.w("ZipExtractor", "Failed to extract fallback cover", e)
+                                            extractedCover = null
                                         }
                                     }
                                 }

@@ -46,7 +46,7 @@ interface OsuApi {
         @Query("played") played: String? = null,
         @Query("q") query: String? = null,
         @Query("g") genre: Int? = null,
-        @Query("s") status: String? = "any",
+        @Query("s") status: String? = null,
         @Query("cursor_string") cursorString: String? = null
     ): SearchResponse
 }

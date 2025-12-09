@@ -29,7 +29,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -79,6 +78,7 @@ fun SearchScreen(
     clientId: String,
     clientSecret: String,
     settingsManager: com.mosu.app.data.SettingsManager,
+    musicController: com.mosu.app.player.MusicController,
     onTokenReceived: (String) -> Unit,
     scrollToTop: Boolean = false,
     onScrolledToTop: () -> Unit = {}
@@ -88,7 +88,7 @@ fun SearchScreen(
     // Search Query
     var searchQuery by remember { mutableStateOf("") }
     
-    // Filter Mode: "played" or "all"
+    // Filter Mode: "played", "all", or "favorite"
     var filterMode by remember { mutableStateOf("played") }
     
     // Played filter mode from settings
@@ -208,7 +208,11 @@ fun SearchScreen(
                         // Filter Mode Toggle Button
                         Button(
                             onClick = {
-                                filterMode = if (filterMode == "played") "all" else "played"
+                                filterMode = when (filterMode) {
+                                    "played" -> "all"
+                                    "all" -> "favorite"
+                                    else -> "played"
+                                }
                                 // Refresh results with new filter
                                 scope.launch {
                                     try {
@@ -222,18 +226,30 @@ fun SearchScreen(
                                 }
                             },
                             modifier = Modifier
-                                .width(80.dp)
+                                .width(85.dp)
                                 .height(40.dp),
                             shape = RoundedCornerShape(8.dp),
                             colors = ButtonDefaults.buttonColors(
-                                containerColor = if (filterMode == "played") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
-                                contentColor = if (filterMode == "played") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer
+                                containerColor = when (filterMode) {
+                                    "all" -> MaterialTheme.colorScheme.secondaryContainer
+                                    "favorite" -> androidx.compose.ui.graphics.Color(0xFFFFD059) // Gold
+                                    else -> MaterialTheme.colorScheme.primary // "played"
+                                },
+                                contentColor = when (filterMode) {
+                                    "all" -> MaterialTheme.colorScheme.onSecondaryContainer
+                                    "favorite" -> androidx.compose.ui.graphics.Color.Black
+                                    else -> MaterialTheme.colorScheme.onPrimary
+                                }
                             ),
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                            contentPadding = PaddingValues(horizontal = 2.dp, vertical = 8.dp)
                         ) {
                             Text(
-                                text = if (filterMode == "played") "Played" else "All",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
+                                text = when (filterMode) {
+                                    "played" -> "Played"
+                                    "all" -> "All"
+                                    else -> "Favorite"
+                                },
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold),
                                 textAlign = TextAlign.Center,
                                 maxLines = 1
                             )
@@ -264,8 +280,8 @@ fun SearchScreen(
                             )
                             
                             // Genre Filter
-                            Text(text = "Filter by Genre", style = MaterialTheme.typography.labelMedium)
-                            LazyRow(modifier = Modifier.padding(vertical = 8.dp)) {
+                            Text(text = "Filter by Genre", style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 4.dp))
+                            LazyRow(modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)) {
                                 items(genres) { (id, name) ->
                                     Button(
                                         onClick = {
@@ -282,17 +298,16 @@ fun SearchScreen(
                                             }
                                         },
                                         modifier = Modifier.padding(end = 8.dp),
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                                         colors = ButtonDefaults.buttonColors(
                                             containerColor = if (selectedGenreId == id) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
                                             contentColor = if (selectedGenreId == id) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer
                                         )
                                     ) {
-                                        Text(name)
+                                        Text(name, style = MaterialTheme.typography.labelMedium)
                                     }
                                 }
                             }
-                            
-                            Divider(modifier = Modifier.padding(vertical = 8.dp))
                         }
                     }
                 
@@ -304,6 +319,17 @@ fun SearchScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .clickable {
+                                if (isDownloaded) {
+                                    // Play the song if downloaded
+                                    scope.launch {
+                                        val tracks = db.beatmapDao().getTracksForSet(map.id)
+                                        if (tracks.isNotEmpty()) {
+                                            musicController.playSong(tracks[0])
+                                        }
+                                    }
+                                }
+                            }
                             .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -361,19 +387,20 @@ fun SearchScreen(
                                                 is DownloadState.Downloaded -> {
                                                     downloadStates = downloadStates + (map.id to DownloadProgress(100, "Extracting..."))
                                                     try {
-                                                        val extractedTracks = extractor.extractBeatmap(state.file, map.id)
-                                                        extractedTracks.forEach { track ->
-                                                            val entity = BeatmapEntity(
-                                                                beatmapSetId = map.id,
-                                                                title = track.title,
-                                                                artist = track.artist,
-                                                                creator = map.creator,
-                                                                difficultyName = track.difficultyName,
-                                                                audioPath = track.audioFile.absolutePath,
-                                                                coverPath = track.coverFile?.absolutePath ?: ""
-                                                            )
-                                                            db.beatmapDao().insertBeatmap(entity)
-                                                        }
+                                                    val extractedTracks = extractor.extractBeatmap(state.file, map.id)
+                                                    extractedTracks.forEach { track ->
+                                                        val entity = BeatmapEntity(
+                                                            beatmapSetId = map.id,
+                                                            title = track.title,
+                                                            artist = track.artist,
+                                                            creator = map.creator,
+                                                            difficultyName = track.difficultyName,
+                                                            audioPath = track.audioFile.absolutePath,
+                                                            coverPath = track.coverFile?.absolutePath ?: "",
+                                                            genreId = map.genreId
+                                                        )
+                                                        db.beatmapDao().insertBeatmap(entity)
+                                                    }
                                                         downloadStates = downloadStates + (map.id to DownloadProgress(100, "Done ✓"))
                                                         // Remove from download states after 2 seconds
                                                         kotlinx.coroutines.delay(2000)
@@ -406,7 +433,6 @@ fun SearchScreen(
                             )
                         }
                     }
-                    Divider(modifier = Modifier.padding(start = 64.dp))
                 }
                 
                 // Pagination / Load More
@@ -418,7 +444,7 @@ fun SearchScreen(
                                     isLoadingMore = true
                                     statusText = "Loading more..."
                                     try {
-                                        val (moreResults, nextCursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, if (currentCursor == "cached_placeholder") null else currentCursor, searchQuery.trim().ifEmpty { null }, filterMode, playedFilterMode, userId)
+                                        val (moreResults, nextCursor) = repository.getPlayedBeatmaps(accessToken!!, selectedGenreId, currentCursor, searchQuery.trim().ifEmpty { null }, filterMode, playedFilterMode, userId)
                                         if (moreResults.isNotEmpty()) {
                                             searchResults = searchResults + moreResults
                                             currentCursor = nextCursor
@@ -459,8 +485,8 @@ fun SearchScreen(
         }
         
         // Initial Load - Fetch results when logged in
-        LaunchedEffect(accessToken) {
-            if (accessToken != null && searchResults.isEmpty()) {
+        LaunchedEffect(accessToken, filterMode) {
+            if (accessToken != null) {
                 try {
                     if (userId == null) {
                         val user = repository.getMe(accessToken)

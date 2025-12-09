@@ -18,5 +18,6 @@ data class BeatmapEntity(
     val difficultyName: String,
     val audioPath: String,
     val coverPath: String,
-    val downloadedAt: Long = System.currentTimeMillis()
+    val downloadedAt: Long = System.currentTimeMillis(),
+    val genreId: Int? = null // Store genre for filtering in Library
 )

@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,6 +21,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DismissDirection
 import androidx.compose.material3.DismissValue
 import androidx.compose.material3.Divider
@@ -55,8 +59,24 @@ fun LibraryScreen(
     val downloadedMaps by db.beatmapDao().getAllBeatmaps().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     
+    // Genre Filter State
+    var selectedGenreId by remember { mutableStateOf<Int?>(null) }
+    
+    val genres = listOf(
+        10 to "Electronic", 3 to "Anime", 4 to "Rock", 5 to "Pop",
+        2 to "Game", 9 to "Hip Hop", 11 to "Metal", 12 to "Classical",
+        13 to "Folk", 14 to "Jazz", 7 to "Novelty", 6 to "Other"
+    )
+    
+    // Filter maps by selected genre
+    val filteredMaps = if (selectedGenreId != null) {
+        downloadedMaps.filter { it.genreId == selectedGenreId }
+    } else {
+        downloadedMaps
+    }
+    
     // Group maps by Set ID
-    val groupedMaps = downloadedMaps.groupBy { it.beatmapSetId }
+    val groupedMaps = filteredMaps.groupBy { it.beatmapSetId }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text(
@@ -64,6 +84,26 @@ fun LibraryScreen(
             style = MaterialTheme.typography.displayMedium, // Apple Music style large title
             modifier = Modifier.padding(bottom = 16.dp)
         )
+        
+        // Genre Filter
+        Text(text = "Filter by Genre", style = MaterialTheme.typography.labelMedium)
+        LazyRow(modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)) {
+            items(genres) { (id, name) ->
+                Button(
+                    onClick = {
+                        selectedGenreId = if (selectedGenreId == id) null else id
+                    },
+                    modifier = Modifier.padding(end = 8.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (selectedGenreId == id) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = if (selectedGenreId == id) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                ) {
+                    Text(name, style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
 
         LazyColumn {
             items(
