@@ -92,6 +92,10 @@ fun MainScreen(
     val storedToken by tokenManager.accessToken.collectAsState(initial = null)
     var accessToken by remember { mutableStateOf<String?>(null) }
     
+    // Scroll to top trigger for Search screen
+    var scrollSearchToTop by remember { mutableStateOf(false) }
+    var lastSearchTapTime by remember { mutableStateOf(0L) }
+    
     // OAuth Credentials from Settings
     val clientId by settingsManager.clientId.collectAsState(initial = "")
     val clientSecret by settingsManager.clientSecret.collectAsState(initial = "")
@@ -132,13 +136,20 @@ fun MainScreen(
                     label = { Text("Search") },
                     selected = currentDestination == "search",
                     onClick = {
-                        navController.navigate("search") {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
+                        val currentTime = System.currentTimeMillis()
+                        if (currentDestination == "search" && (currentTime - lastSearchTapTime) < 500) {
+                            // Double tap detected - scroll to top
+                            scrollSearchToTop = true
+                        } else {
+                            navController.navigate("search") {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
                             }
-                            launchSingleTop = true
-                            restoreState = true
                         }
+                        lastSearchTapTime = currentTime
                     }
                 )
                 NavigationBarItem(
@@ -179,7 +190,9 @@ fun MainScreen(
                             accessToken = token
                             tokenManager.saveToken(token)
                         }
-                    }
+                    },
+                    scrollToTop = scrollSearchToTop,
+                    onScrolledToTop = { scrollSearchToTop = false }
                 )
             }
             composable("profile") {
