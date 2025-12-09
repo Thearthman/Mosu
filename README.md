@@ -15,9 +15,16 @@ Mosu lets you log in with your osu! account, fetch your played/favorite beatmaps
 ## Setup Tutorial
 
 1) Prerequisites
-- An osu! account, from which you can will need to get an OAuth app credentials (client ID/secret) from https://osu.ppy.sh/home/account/edit. 
+- An osu! account, from which you will need to get OAuth app credentials (client ID/secret) from https://osu.ppy.sh/home/account/edit. 
 
-> What? A tutorial for how to get your OAuth keys? It's actually quite important: Once you are in the above webpage, look for OAuth(开放授权) section. Click add a new OAuth app, then put "mosu://callback" to the callback link section and give this app a name. After which you should be able to get your clients secret key and clientID. 
+> **IMPORTANT**: How to get your OAuth keys:
+> 1. Go to https://osu.ppy.sh/home/account/edit
+> 2. Scroll down to find the "OAuth" (开放授权) section
+> 3. Click "New OAuth Application"
+> 4. Set **Application Callback URL** to exactly: `mosu://callback` (no trailing slash!)
+> 5. Give your app a name (e.g., "Mosu")
+> 6. Click "Register application"
+> 7. Copy your **Client ID** and **Client Secret** (you'll need both) 
 
 2) Configure OAuth (required to log in)
 - Launch the app, go to Profile → Configure Credentials.

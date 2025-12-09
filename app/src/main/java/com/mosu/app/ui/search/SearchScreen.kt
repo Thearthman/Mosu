@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -137,29 +138,28 @@ fun SearchScreen(
         13 to "Folk", 14 to "Jazz", 7 to "Novelty", 6 to "Other"
     )
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Text(
             text = "Search",
             style = MaterialTheme.typography.displayMedium,
-            modifier = Modifier.padding(bottom = 16.dp)
+            modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
         )
-
-        if (accessToken == null) {
-        Text(
-            text = "Search",
-            style = MaterialTheme.typography.displayMedium,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-        }
 
         if (accessToken == null) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text("Not Logged In", style = MaterialTheme.typography.titleMedium)
                     Text("Please go to the Profile tab to configure credentials and login.", style = MaterialTheme.typography.bodyMedium)
+                    if (statusText.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = statusText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
             }
-            Text(text = statusText, modifier = Modifier.padding(top = 8.dp))
         } else {
             // Collapsible header with search bar and genre filter
             LazyColumn(
@@ -480,23 +480,23 @@ fun SearchScreen(
                         }
                     }
                 }
-            }
-            
-        // Auth Logic - Handle OAuth callback
-        LaunchedEffect(authCode) {
-            if (authCode != null && accessToken == null && clientId.isNotEmpty() && clientSecret.isNotEmpty()) {
-                try {
-                    val tokenResponse = repository.exchangeCodeForToken(authCode, clientId, clientSecret)
-                    onTokenReceived(tokenResponse.accessToken)
-                    // Fetch user ID
-                    val user = repository.getMe(tokenResponse.accessToken)
-                    userId = user.id.toString()
-                } catch (e: Exception) {
-                    statusText = "Login Error: ${e.message}"
+                
+                // Status/Error Message Display
+                if (statusText.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = statusText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = if (statusText.contains("Error") || statusText.contains("Failed")) 
+                                MaterialTheme.colorScheme.error 
+                            else 
+                                MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.fillMaxWidth().padding(16.dp)
+                        )
+                    }
                 }
             }
-        }
-        
+            
         // Initial Load - Fetch results when logged in
         LaunchedEffect(accessToken, filterMode) {
             if (accessToken != null) {

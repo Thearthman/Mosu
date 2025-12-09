@@ -11,12 +11,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -102,10 +104,37 @@ fun MainScreen(
     val clientId by settingsManager.clientId.collectAsState(initial = "")
     val clientSecret by settingsManager.clientSecret.collectAsState(initial = "")
     
+    // Login error state
+    var loginError by remember { mutableStateOf<String?>(null) }
+    
     // Initialize access token from storage
     LaunchedEffect(storedToken) {
         if (storedToken != null) {
             accessToken = storedToken
+        }
+    }
+    
+    // Handle OAuth callback - Process login code globally
+    LaunchedEffect(initialAuthCode, clientId, clientSecret) {
+        if (initialAuthCode != null && accessToken == null) {
+            if (clientId.isEmpty() || clientSecret.isEmpty()) {
+                android.util.Log.w("MainActivity", "OAuth callback received but credentials not configured")
+                loginError = "Login failed: Please configure your Client ID and Secret in Profile settings first."
+            } else {
+                try {
+                    loginError = null
+                    android.util.Log.d("MainActivity", "Processing OAuth callback with code: ${initialAuthCode.take(10)}...")
+                    android.util.Log.d("MainActivity", "Client ID configured: ${clientId.isNotEmpty()}")
+                    val tokenResponse = repository.exchangeCodeForToken(initialAuthCode, clientId, clientSecret)
+                    tokenManager.saveToken(tokenResponse.accessToken)
+                    accessToken = tokenResponse.accessToken
+                    loginError = "Login successful!"
+                    android.util.Log.d("MainActivity", "Login successful!")
+                } catch (e: Exception) {
+                    android.util.Log.e("MainActivity", "Login failed", e)
+                    loginError = "Login failed: ${e.message}\n\nPlease check your Client ID and Secret in Profile settings."
+                }
+            }
         }
     }
     
@@ -224,5 +253,21 @@ fun MainScreen(
                 )
             }
         }
+    }
+    
+    // Show login error dialog
+    if (loginError != null) {
+        AlertDialog(
+            onDismissRequest = { loginError = null },
+            title = { 
+                Text(if (loginError!!.contains("successful")) "Success" else "Login Error") 
+            },
+            text = { Text(loginError!!) },
+            confirmButton = {
+                TextButton(onClick = { loginError = null }) {
+                    Text("OK")
+                }
+            }
+        )
     }
 }

@@ -78,11 +78,11 @@ fun LibraryScreen(
     // Group maps by Set ID
     val groupedMaps = filteredMaps.groupBy { it.beatmapSetId }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Text(
             text = "Library",
             style = MaterialTheme.typography.displayMedium, // Apple Music style large title
-            modifier = Modifier.padding(bottom = 16.dp)
+            modifier = Modifier.padding(top = 16.dp, bottom = 16.dp)
         )
         
         // Genre Filter
