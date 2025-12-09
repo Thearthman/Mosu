@@ -2,80 +2,175 @@ package com.mosu.app.domain.download
 
 import android.content.Context
 import android.util.Log
+import com.mosu.app.domain.model.ExtractedTrack
+import java.io.BufferedReader
 import java.io.File
 import java.io.FileOutputStream
+import java.io.InputStreamReader
+import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class ZipExtractor(private val context: Context) {
 
-    /**
-     * Extracts audio (.mp3/.ogg) and cover (.jpg/.png) from .osz
-     * Returns the directory where files are stored.
-     */
-    suspend fun extractBeatmap(oszFile: File, beatmapSetId: Long): File = withContext(Dispatchers.IO) {
+    suspend fun extractBeatmap(oszFile: File, beatmapSetId: Long): List<ExtractedTrack> = withContext(Dispatchers.IO) {
         val outputDir = File(context.getExternalFilesDir(null), "beatmaps/$beatmapSetId")
         if (!outputDir.exists()) outputDir.mkdirs()
 
+        val extractedTracks = mutableListOf<ExtractedTrack>()
+        val osuFiles = mutableListOf<String>() // Names of .osu files
+
         try {
             ZipFile(oszFile).use { zip ->
-                val entries = zip.entries()
+                val entriesList = zip.entries().toList()
                 
-                var audioFound = false
-                var coverFound = false
+                // Extract .osu files to parse them
+                entriesList.filter { it.name.endsWith(".osu") }.forEach { entry ->
+                    val dest = File(outputDir, entry.name)
+                    zip.getInputStream(entry).use { input ->
+                        FileOutputStream(dest).use { output -> input.copyTo(output) }
+                    }
+                    osuFiles.add(entry.name)
+                }
 
-                while (entries.hasMoreElements()) {
-                    val entry = entries.nextElement()
-                    val name = entry.name.lowercase()
-
-                    // Logic to find Audio
-                    // Simple heuristic: largest mp3/ogg file or ends with .mp3
-                    if (!audioFound && (name.endsWith(".mp3") || name.endsWith(".ogg"))) {
-                        // Extract as "audio.mp3" (or keep extension) to normalize
-                        val ext = if (name.endsWith(".ogg")) "ogg" else "mp3"
-                        val dest = File(outputDir, "audio.$ext")
+                // 2. Parse each .osu file to find associations
+                val uniqueAudioFiles = mutableSetOf<String>()
+                
+                osuFiles.forEach { osuFileName ->
+                    val osuFile = File(outputDir, osuFileName)
+                    val metadata = parseOsuFile(osuFile)
+                    
+                    if (metadata != null) {
+                        // Avoid duplicates if multiple difficulties share same audio/bg (very common)
+                        // We construct a track for EACH difficulty, or group?
+                        // User wants "Album" -> "Different songs under same map".
+                        // Usually 1 mapset = 1 song (audio.mp3) + N difficulties.
+                        // User specifically said "multiple music present... multiple difficulty with different music".
                         
-                        zip.getInputStream(entry).use { input ->
-                            FileOutputStream(dest).use { output -> input.copyTo(output) }
-                        }
-                        audioFound = true
-                        Log.d("ZipExtractor", "Extracted audio: ${entry.name}")
-                    }
-
-                    // Logic to find Cover
-                    // Often named "bg.jpg", "background.jpg", or just large jpgs
-                    // For now, look for common background names or any jpg
-                    // TODO: Improve by parsing .osu file for "Events" section background
-                    if (!coverFound && (name.endsWith(".jpg") || name.endsWith(".png") || name.endsWith(".jpeg"))) {
-                         // A bit naive, but usually the background is the largest image or explicitly named
-                         // For MVP, if it contains "bg" or "cover" or "background" prioritize it
-                         val isLikelyCover = name.contains("bg") || name.contains("cover") || name.contains("background")
-                         
-                         if (isLikelyCover || !coverFound) { // Take first image as fallback, replace if better match found?
-                            val ext = name.substringAfterLast('.')
-                            val dest = File(outputDir, "cover.$ext")
+                        // We will treat each Unique Audio File as a "Track".
+                        if (!uniqueAudioFiles.contains(metadata.audioFilename)) {
+                            uniqueAudioFiles.add(metadata.audioFilename)
                             
-                            zip.getInputStream(entry).use { input ->
-                                FileOutputStream(dest).use { output -> input.copyTo(output) }
+                            // Extract Audio
+                            val audioEntry = entriesList.find { it.name.equals(metadata.audioFilename, ignoreCase = true) }
+                            var extractedAudio: File? = null
+                            
+                            if (audioEntry != null) {
+                                extractedAudio = File(outputDir, metadata.audioFilename)
+                                if (!extractedAudio.exists()) {
+                                    zip.getInputStream(audioEntry).use { input ->
+                                        FileOutputStream(extractedAudio).use { output -> input.copyTo(output) }
+                                    }
+                                }
                             }
-                            coverFound = true // Simplification: just take the first candidate for now
-                            Log.d("ZipExtractor", "Extracted cover: ${entry.name}")
-                         }
+
+                            // Extract Background
+                            // Logic: weight "bg"/"background", but prefer the one linked in .osu
+                            var extractedCover: File? = null
+                            val bgName = metadata.backgroundFilename
+                            
+                            if (bgName != null) {
+                                val bgEntry = entriesList.find { it.name.equals(bgName, ignoreCase = true) }
+                                if (bgEntry != null) {
+                                    extractedCover = File(outputDir, bgName)
+                                    if (!extractedCover.exists()) {
+                                        zip.getInputStream(bgEntry).use { input ->
+                                            FileOutputStream(extractedCover).use { output -> input.copyTo(output) }
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // If no BG in .osu, fallback to heuristic
+                            if (extractedCover == null) {
+                                val fallbackEntry = entriesList.find { 
+                                    val n = it.name.lowercase()
+                                    (n.endsWith(".jpg") || n.endsWith(".png")) && 
+                                    (n.contains("bg") || n.contains("background"))
+                                } ?: entriesList.find { it.name.endsWith(".jpg") || it.name.endsWith(".png") }
+                                
+                                if (fallbackEntry != null) {
+                                    extractedCover = File(outputDir, fallbackEntry.name)
+                                    if (!extractedCover.exists()) {
+                                        zip.getInputStream(fallbackEntry).use { input ->
+                                            FileOutputStream(extractedCover).use { output -> input.copyTo(output) }
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (extractedAudio != null) {
+                                extractedTracks.add(ExtractedTrack(
+                                    audioFile = extractedAudio,
+                                    coverFile = extractedCover,
+                                    title = metadata.title,
+                                    artist = metadata.artist,
+                                    difficultyName = metadata.version
+                                ))
+                            }
+                        }
                     }
+                    // Delete .osu file after parsing (optional, maybe keep for future)
+                    osuFile.delete()
                 }
             }
         } catch (e: Exception) {
             Log.e("ZipExtractor", "Failed to unzip", e)
             throw e
         } finally {
-            // Cleanup the .osz file to save space
             if (oszFile.exists()) {
                 oszFile.delete()
             }
         }
         
-        return@withContext outputDir
+        return@withContext extractedTracks
+    }
+
+    private data class OsuMetadata(
+        val audioFilename: String,
+        val backgroundFilename: String?,
+        val title: String,
+        val artist: String,
+        val version: String
+    )
+
+    private fun parseOsuFile(file: File): OsuMetadata? {
+        var audioFilename = ""
+        var bgFilename: String? = null
+        var title = ""
+        var artist = ""
+        var version = ""
+        
+        try {
+            file.forEachLine { line ->
+                val trimmed = line.trim()
+                if (trimmed.startsWith("AudioFilename:")) {
+                    audioFilename = trimmed.substringAfter(":").trim()
+                } else if (trimmed.startsWith("Title:")) {
+                    title = trimmed.substringAfter(":").trim()
+                } else if (trimmed.startsWith("Artist:")) {
+                    artist = trimmed.substringAfter(":").trim()
+                } else if (trimmed.startsWith("Version:")) {
+                    version = trimmed.substringAfter(":").trim()
+                } else if (trimmed.startsWith("0,0,") && (trimmed.endsWith(".jpg") || trimmed.endsWith(".png") || trimmed.endsWith(".jpeg"))) {
+                    // Events section background line usually looks like: 0,0,"bg.jpg",0,0
+                    // But regex is safer. Or simple string split.
+                    // Background events start with 0,0 (Background), then filename in quotes
+                    val parts = trimmed.split(",")
+                    if (parts.size >= 3) {
+                        val potentialBg = parts[2].replace("\"", "")
+                        if (potentialBg.contains(".")) {
+                            bgFilename = potentialBg
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            return null
+        }
+        
+        if (audioFilename.isEmpty()) return null
+        return OsuMetadata(audioFilename, bgFilename, title, artist, version)
     }
 }
-

@@ -10,11 +10,13 @@ import kotlinx.coroutines.flow.Flow
 interface BeatmapDao {
     @Query("SELECT * FROM beatmaps ORDER BY downloadedAt DESC")
     fun getAllBeatmaps(): Flow<List<BeatmapEntity>>
+    
+    @Query("SELECT * FROM beatmaps WHERE beatmapSetId = :setId")
+    suspend fun getTracksForSet(setId: Long): List<BeatmapEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBeatmap(beatmap: BeatmapEntity)
 
-    @Query("DELETE FROM beatmaps WHERE id = :id")
-    suspend fun deleteBeatmap(id: Long)
+    @Query("DELETE FROM beatmaps WHERE beatmapSetId = :setId")
+    suspend fun deleteBeatmapSet(setId: Long)
 }
-

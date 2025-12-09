@@ -39,7 +39,7 @@ class MusicController(context: Context) {
 
         val mediaItem = MediaItem.Builder()
             .setUri(Uri.fromFile(file))
-            .setMediaId(beatmap.id.toString())
+            .setMediaId(beatmap.uid.toString())
             .setMediaMetadata(metadata)
             .build()
 

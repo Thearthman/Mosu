@@ -1,17 +1,22 @@
 package com.mosu.app.data.db
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "beatmaps")
+@Entity(
+    tableName = "beatmaps",
+    indices = [Index(value = ["beatmapSetId"])]
+)
 data class BeatmapEntity(
-    @PrimaryKey
-    val id: Long,
+    @PrimaryKey(autoGenerate = true)
+    val uid: Long = 0,
+    val beatmapSetId: Long,
     val title: String,
     val artist: String,
     val creator: String,
-    val audioPath: String, // Absolute path to the .mp3/.ogg
-    val coverPath: String, // Absolute path to the .jpg
+    val difficultyName: String,
+    val audioPath: String,
+    val coverPath: String,
     val downloadedAt: Long = System.currentTimeMillis()
 )
-

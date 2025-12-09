@@ -15,7 +15,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Divider
@@ -197,29 +198,22 @@ fun LoginScreen(
                                 is DownloadState.Downloaded -> {
                                     statusText = "Downloaded .osz! Extracting..."
                                     try {
-                                        val outputDir = extractor.extractBeatmap(state.file, firstBeatmapId!!)
-                                        statusText = "Success! Extracted to:\n${outputDir.absolutePath}"
+                                        // Save to DB (Handle multiple tracks)
+                                        val extractedTracks = extractor.extractBeatmap(state.file, firstBeatmapId!!)
+                                        statusText = "Success! Extracted ${extractedTracks.size} tracks."
                                         
-                                        // Save to DB
-                                        // Detect if audio.mp3 or audio.ogg exists
-                                        val mp3File = File(outputDir, "audio.mp3")
-                                        val oggFile = File(outputDir, "audio.ogg")
-                                        val audioFile = if (mp3File.exists()) mp3File else oggFile
-                                        
-                                        // Detect cover extension (jpg/png) - ZipExtractor uses cover.ext based on source
-                                        // We need to find what was extracted.
-                                        val coverFile = outputDir.listFiles()?.find { it.name.startsWith("cover.") } 
-                                            ?: File(outputDir, "cover.jpg") // Fallback
-                                        
-                                        val entity = BeatmapEntity(
-                                            id = firstBeatmapId!!,
-                                            title = firstBeatmapTitle,
-                                            artist = firstBeatmapArtist,
-                                            creator = firstBeatmapCreator,
-                                            audioPath = audioFile.absolutePath,
-                                            coverPath = coverFile.absolutePath
-                                        )
-                                        db.beatmapDao().insertBeatmap(entity)
+                                        extractedTracks.forEach { track ->
+                                            val entity = BeatmapEntity(
+                                                beatmapSetId = firstBeatmapId!!,
+                                                title = track.title,
+                                                artist = track.artist,
+                                                creator = firstBeatmapCreator,
+                                                difficultyName = track.difficultyName,
+                                                audioPath = track.audioFile.absolutePath,
+                                                coverPath = track.coverFile?.absolutePath ?: ""
+                                            )
+                                            db.beatmapDao().insertBeatmap(entity)
+                                        }
                                         statusText += "\nSaved to Database!"
                                         
                                     } catch (e: Exception) {
@@ -249,20 +243,47 @@ fun LoginScreen(
         Divider(modifier = Modifier.padding(vertical = 16.dp))
         
         Text(text = "Downloaded Songs (${downloadedMaps.size}):", style = MaterialTheme.typography.titleMedium)
+        
+        // Group maps by Set ID
+        val groupedMaps = downloadedMaps.groupBy { it.beatmapSetId }
+        
         LazyColumn {
-            items(downloadedMaps) { map ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { musicController.playSong(map) }
-                        .padding(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(imageVector = Icons.Default.PlayArrow, contentDescription = "Play")
-                    Column(modifier = Modifier.padding(start = 8.dp)) {
-                        Text(text = map.title, style = MaterialTheme.typography.bodyLarge)
-                        Text(text = map.artist, style = MaterialTheme.typography.bodyMedium)
+            items(groupedMaps.keys.toList()) { setId ->
+                val tracks = groupedMaps[setId] ?: emptyList()
+                if (tracks.isEmpty()) return@items
+
+                if (tracks.size > 1) {
+                    // Album/Folder View
+                    var expanded by remember { mutableStateOf(false) }
+                    
+                    Column(modifier = Modifier.padding(8.dp)) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { expanded = !expanded }
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, 
+                                contentDescription = "Expand"
+                            )
+                            Column(modifier = Modifier.padding(start = 8.dp)) {
+                                Text(text = tracks[0].title, style = MaterialTheme.typography.titleMedium)
+                                Text(text = "${tracks.size} tracks", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                        
+                        if (expanded) {
+                            tracks.forEach { map ->
+                                TrackItem(map = map, musicController = musicController)
+                            }
+                        }
                     }
+                    Divider()
+                } else {
+                    // Single Track View
+                    TrackItem(map = tracks[0], musicController = musicController)
                 }
             }
         }
