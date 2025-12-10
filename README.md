@@ -5,10 +5,11 @@ Mosu lets you log in with your osu! account, fetch your played/favorite beatmaps
 
 ## Features & Use Cases
 ### Concise three page layout + apple music style player
-- **Search**: OAuth-authenticated beatmap search with Played/All/Favorite toggle, genre chips, fuzzy text, collapsing header, cursor-based pagination, per-item download progress, checkmarks for downloaded, tap downloaded to play.
-- **Library**: Albums expandable by beatmap set, genre filter, swipe-to-delete (removes files + DB), plays downloaded items.
-- **Profile**: osu! login/logout, user info and downloaded count, toggle played-filter mode (URL vs most-played), enter/edit OAuth client ID/secret (stored via DataStore), placeholders for Equalizer/Heatmap.
-- **Player** (Full & Mini): Media3 playback with background service, MiniPlayer hides when paused, tap MiniPlayer to expand, mod selector (No Mod/DT/NC with persistent choice), basic transport controls, shuffle/repeat.
++- **Search**: OAuth-authenticated beatmap search with selectable views (Played, Recent, Favorite, Most Played, All) plus global include-unranked toggle; genre chips, collapsing header, cursor-based pagination, per-item download progress, checkmarks for downloaded, tap downloaded to play.
++- **Library**: Albums expandable by beatmap set, genre filter, swipe-to-delete (removes files + DB), plays downloaded items, “Find current song” button to scroll/highlight the playing track.
++- **Profile**: osu! login/logout, user info and downloaded count, default search view selector, include-unranked (s=any) toggle, enter/edit OAuth client ID/secret (stored via DataStore), language selector.
++- **Player** (Full & Mini): Media3 playback with background service, MiniPlayer hides on Profile, tap MiniPlayer to expand, mod selector (NM/DT/NC with persistent choice), deterministic shuffle/repeat cycle.
+
 
 ### Features
 - OAuth login with persisted tokens; in-app client ID/secret configuration.
