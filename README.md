@@ -4,6 +4,13 @@
 Mosu lets you log in with your osu! account, fetch your played/favorite beatmaps, download them as songs, and play them offline with Media3/ExoPlayer. It uses mirrors for `.osz` downloads, extracts audio/cover art, and stores metadata in Room with cached search results for speed.
 
 ## Features & Use Cases
+### Concise three page layout + apple music style player
+- **Search**: OAuth-authenticated beatmap search with Played/All/Favorite toggle, genre chips, fuzzy text, collapsing header, cursor-based pagination, per-item download progress, checkmarks for downloaded, tap downloaded to play.
+- **Library**: Albums expandable by beatmap set, genre filter, swipe-to-delete (removes files + DB), plays downloaded items.
+- **Profile**: osu! login/logout, user info and downloaded count, toggle played-filter mode (URL vs most-played), enter/edit OAuth client ID/secret (stored via DataStore), placeholders for Equalizer/Heatmap.
+- **Player** (Full & Mini): Media3 playback with background service, MiniPlayer hides when paused, tap MiniPlayer to expand, mod selector (No Mod/DT/NC with persistent choice), basic transport controls, shuffle/repeat.
+
+### Features
 - osu! OAuth login with persistent token storage; configurable client ID/secret in-app.
 - Search beatmaps with played/all/favorite toggle, genre filters, fuzzy text search, collapsing header, and cursor-based pagination with 5‑minute cache.
 - Per-item download progress; already-downloaded items show a checkmark. Click downloaded items (Search or Library) to play immediately.
@@ -15,7 +22,7 @@ Mosu lets you log in with your osu! account, fetch your played/favorite beatmaps
 
 ## Setup Tutorial
 
-1) Prerequisites
+### 1. Prerequisites
 - An osu! account, from which you will need to get OAuth app credentials (client ID/secret) from https://osu.ppy.sh/home/account/edit. 
 
 > **IMPORTANT**: How to get your OAuth keys:
@@ -27,17 +34,17 @@ Mosu lets you log in with your osu! account, fetch your played/favorite beatmaps
 > 6. Click "Register application"
 > 7. Copy your **Client ID** and **Client Secret** (you'll need both) 
 
-2) Configure OAuth (required to log in)
+### 2. Configure OAuth (required to log in)
 - Launch the app, go to Profile → Configure Credentials.
 - Enter your osu! OAuth client ID and secret; they are stored locally via DataStore.
 - Login will redirect via `mosu://callback` (already in the manifest).
 
-3) Usage tips
+### 3. Usage tips
 - Search tab: use Played/All/Favorite toggle and genre chips; Load More uses cursor-based pagination. Downloads show progress; checkmarks indicate downloaded.
 - Library tab: albums are expandable; swipe left to delete (removes files + DB).
 - Player: tap MiniPlayer to expand; use Mod label to pick DT/NC; chosen mod stays active for next songs until changed.
 - Profile tab: login/logout, view user info/downloaded count, toggle played-filter mode (URL vs most-played), edit OAuth creds.
 
-4) Notes
+### 4. Notes
 - Download source uses mirrors; audio/cover extracted from `.osz` and stored under app files. 
 - Room DB version 5 with destructive migrations during development.
