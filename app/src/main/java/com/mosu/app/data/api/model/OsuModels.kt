@@ -46,6 +46,24 @@ data class Covers(
     @SerializedName("list") val listUrl: String
 )
 
+data class BeatmapDetail(
+    @SerializedName("id") val id: Long,
+    @SerializedName("version") val version: String,
+    @SerializedName("mode") val mode: String,
+    @SerializedName("difficulty_rating") val difficultyRating: Float,
+    @SerializedName("url") val url: String?,
+    @SerializedName("beatmapset_id") val beatmapsetId: Long
+)
+
+data class BeatmapsetDetail(
+    @SerializedName("id") val id: Long,
+    @SerializedName("title") val title: String,
+    @SerializedName("artist") val artist: String,
+    @SerializedName("creator") val creator: String,
+    @SerializedName("covers") val covers: Covers,
+    @SerializedName("beatmaps") val beatmaps: List<BeatmapDetail> = emptyList()
+)
+
 data class SearchResponse(
     @SerializedName("beatmapsets") val beatmapsets: List<BeatmapsetCompact>,
     @SerializedName("total") val total: Int,

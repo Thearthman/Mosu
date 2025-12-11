@@ -9,15 +9,18 @@ import androidx.room.RoomDatabase
     entities = [
         BeatmapEntity::class,
         SearchCacheEntity::class,
-        RecentPlayEntity::class
+        RecentPlayEntity::class,
+        PlaylistEntity::class,
+        PlaylistTrackEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun beatmapDao(): BeatmapDao
     abstract fun searchCacheDao(): SearchCacheDao
     abstract fun recentPlayDao(): RecentPlayDao
+    abstract fun playlistDao(): PlaylistDao
 
     companion object {
         @Volatile

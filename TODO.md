@@ -1,6 +1,5 @@
 # Bug Fix
-1. Order of beatmaps displayed in Favorite view is not order to the chronological order that the user favorites the map, which is supposed to be the default ordering of the returned data.
-2. The album cover displayed in the miniplayer & fullplayer is different from phone's music player. This only happens when downloading processing merged beatmaps data. See if there is any logical mistake in merging that would cause this.
+1. The album cover displayed in the miniplayer & fullplayer is different from phone's music player. This only happens when downloading processing merged beatmaps data. See if there is any logical mistake in merging that would cause this.
 
 # UI improvement (implement 3 first)
 ~~1. the "top bar" which is where the status bar of the phone sits, is now colored grey for some reason. Make it blend in.~~
@@ -9,7 +8,7 @@
 ~~4. add most-played view also to support. Support's search page should be able to contain all 4 search methods. We need to rethink about the ordering of these modes, maybe change the UX for switching between 4 modes because one button is too much for 4 modes.~~
 ~~5. Slider reshape into AM style.~~
 6. In Search page, Add a game mode label at the end of the composer's name's line. 
-
+7. Add playcount to info popup in search page.
 
 # New Feature 
 1. Settings page update
@@ -19,7 +18,7 @@
     ~~4. Implement search true all songs(unranked, loved, and so on) with url tag `s=any`~~
     5. Add guidance page on how to get get credential in the fill in credential page. Like a help button. I'll write a guidance markdown file on this topic placed in the root folder you'll need to make sure the app will display the markdown file (you can ask me to convert it to pdf or any other format that's best for display and storing in android app). If you can't find the file ask me to make it first.
     ~~6. Implement language dropdown menu. For now, included English, 简体中文 and 繁体中文.~~
-    7. Implement language changing feature, support the language in the language menu mentioned in 1.6
+    7. Implement language changing feature, support the language in the language menu mentioned in 1.6 (Library and Search page done)
 2. Add player view 
     ~~1. Add thin `collapsed player view` (like apple music) to the bottom of the page on top of the `navigation bar`. It should have `play/pause`, `next` and `previous` song buttons on the right side of it and a small cover on the left of it and the title of the song in the middle (can be clipped off by the play button if title too long)~~
     ~~2. When area outside of the buttons are click in the `collapsed play view`, it expands upward to fill the screen while the `navigation bar` retract downwards and hides. The cover photo expand, move upwards smoothly following the scroll motion, and fade into the background of the page (at lower brightness and with a subtle blur). The controls are centered and at the lower 50% of the display. It should have `progress bar` that can be dragged, `play/pause`, `next`, `previous`, `single`/`loop`/`random`(they are a single button just like `played`/`all` button) and `mod`(see feature 5 below) buttons. When the area is slide vertically (be careful not to cause unintended motion when sliding the play progress bar) downwards, the playview collaps downward back into the mini player. The cover photo should shrink and becomes solid back again with a smooth motion returning to the left side of the mini player following the motion of the scroll.~~
@@ -35,7 +34,7 @@
     ~~4. Sort played query list by data played, which is quite difficult to implement I'll have to think about how to use osu apis and mechanism to achieve this.~~
     ~~5. In search page, when displaying the result query, merge songs with same title. for detail on how it works, please reference the merge method in favorite queries. Also we do not need to concern about beatmaps difficulty name here because they are not included in the data returned. You should use the album and song info from the very first song you got with that title. When load more is pressed, it should also skip newly returned songs that already has a song with exact same title present.~~
     ~~6. Avoid special character injections, and avoid directly adding special character to the http request.~~
-    7. add info popup in search page when clicking beatmaps, should account for the following factors: merged song, not merged song. Account for the fact that beatmaps could be merged and also have multiple difficulties at the same time. The popup should contain difficulties for all merged beatmaps in this situation. Regarding the UIUX of individual song boxes: For each beatmap, it's box simply shows beatmap author,  game mode, star rating range(not displaying individual difficulties now). They can have multiple game mode and corresponding star rating range. When the box is clicked, it brings you to the beatmap's osu website 
+    ~~7. add info popup in search page when clicking beatmaps, should account for the following factors: merged song, not merged song. Account for the fact that beatmaps could be merged and also have multiple difficulties at the same time. The popup should contain difficulties for all merged beatmaps in this situation. Regarding the UIUX of individual song boxes: For each beatmap, it's box simply shows beatmap author,  game mode, star rating range(not displaying individual difficulties now). They can have multiple game mode and corresponding star rating range. When the box is clicked, it brings you to the beatmap's osu website ~~
     ~~8. Change merge algorithm: prioritize to display songs already in the library when merging. Also, when merging, the condition changes to not only should the title match exactly, the author has to match as well.~~
     9. Add a preferred game mode setting in profile page and only show the preferred game mode if one beatmap has multiple game modes
 5. Library update
@@ -43,8 +42,10 @@
     ~~2. waiting for loop implementation to make the library genre filter applies to `loop`/`random` playlist.~~
     ~~3. implement a find current song button in library. It should be a button (with a locate icon and transparent background) floating on the bottom left of the song list (still above the miniplayer). When clicked, the song list scrolls to the song that's playing. For now use title for matching. Then briefly make the background of the song that's found blink for one second. It should dissappear when using full player and make sure its button functionality is disabled so it won't cause mistouch in full player. It should not appear when no music is in miniplayer. Also, if there is no matching music, don't move at all, just blink the button itself for a second to indicate error. If the music is already in current view, just blink it. ~~
     4. add search page search bar to library.
+    ~~5. add right swipe to add to playlist action for every song that enter a menu displaying a list of playlist to add to. Should also be able to remove songs from playlists from here.~~
 6. Add Playlist page 
-    1. Add `Playlist` page which you can create album and put music into it. has a create album button on the top right. page view default to all album spreading out. Two albums per row and extends downwards. You can click into albums and the view changes to the album title on top with a play button next to it, with song list below. You can add song here, base on the add button on the top right. or play the album which when using loop/random will only loop the songs in the album.
+    ~~1. Add `Playlist` page which you can create album and put music into it. has a create album button on the top right. page view default to all album spreading out. Two albums per row and extends downwards. You can click into albums and the view changes to the album title on top with a play button next to it, with song list below. You can add song here, base on the add button on the top right. or play the album which when using loop/random will only loop the songs in the album.~~
+
 
 
 
@@ -58,4 +59,5 @@
 2. the miniplay would disppear for a sec before showing again when a new song is clicked.
 3. the nav bar would show when song is paused in player view
 1. Fix dragging progressbar does not update its position immediately. It waits for the music to play to update the pos. 
+1. Order of beatmaps displayed in Favorite view is not order to the chronological order that the user favorites the map, which is supposed to be the default ordering of the returned data.
 -->

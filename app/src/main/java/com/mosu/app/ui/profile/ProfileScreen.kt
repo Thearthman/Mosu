@@ -7,6 +7,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -14,8 +15,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.mosu.app.R
 import com.mosu.app.data.SettingsManager
 import com.mosu.app.data.TokenManager
 import com.mosu.app.data.api.model.OsuUserCompact
@@ -45,6 +48,7 @@ fun ProfileScreen(
     val defaultSearchView by settingsManager.defaultSearchView.collectAsState(initial = "played")
     val searchAnyEnabled by settingsManager.searchAnyEnabled.collectAsState(initial = false)
     val language by settingsManager.language.collectAsState(initial = "en")
+    val infoCoverEnabled by settingsManager.infoCoverEnabled.collectAsState(initial = true)
     var languageMenuExpanded by remember { mutableStateOf(false) }
     val languageOptions = listOf(
         "en" to "English",
@@ -109,6 +113,39 @@ fun ProfileScreen(
                         Text("Configure Credentials")
                     }
                 }
+            }
+            
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text("Show cover in info popup", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Toggle beatmap cover visibility in Search info dialog.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                    Switch(
+                        checked = infoCoverEnabled,
+                        onCheckedChange = { checked ->
+                            scope.launch { settingsManager.saveInfoCoverEnabled(checked) }
+                        }
+                    )
+                }
+            }
+
+            InfoCoverToggleCard(infoCoverEnabled = infoCoverEnabled) { checked ->
+                scope.launch { settingsManager.saveInfoCoverEnabled(checked) }
             }
 
             // Language
@@ -219,6 +256,10 @@ fun ProfileScreen(
                         Text("Update Credentials")
                     }
                 }
+            }
+
+            InfoCoverToggleCard(infoCoverEnabled = infoCoverEnabled) { checked ->
+                scope.launch { settingsManager.saveInfoCoverEnabled(checked) }
             }
             
             // Default Search View
@@ -445,6 +486,38 @@ fun ProfileScreen(
     }
 }
 
+@Composable
+private fun InfoCoverToggleCard(
+    infoCoverEnabled: Boolean,
+    onToggle: (Boolean) -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(stringResource(id = R.string.info_cover_title), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(id = R.string.info_cover_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
+            Switch(
+                checked = infoCoverEnabled,
+                onCheckedChange = onToggle
+            )
+        }
+    }
+}
 private fun languageLabel(code: String): String = when (code) {
     "zh-CN" -> "简体中文"
     "zh-TW" -> "繁体中文"

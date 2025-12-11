@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -42,6 +43,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -59,15 +63,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import com.mosu.app.R
 import com.mosu.app.data.api.model.Covers
 import com.mosu.app.data.api.model.BeatmapsetCompact
+import com.mosu.app.data.api.model.BeatmapDetail
 import com.mosu.app.data.db.AppDatabase
 import com.mosu.app.data.db.RecentPlayEntity
 import com.mosu.app.data.db.BeatmapEntity
@@ -148,6 +158,7 @@ fun SearchScreen(
     
     // Downloaded BeatmapSet IDs (from database)
     var downloadedBeatmapSetIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    var mergeGroups by remember { mutableStateOf<Map<String, Set<Long>>>(emptyMap()) } // key -> setIds
     
     // Load downloaded beatmap IDs from database
     LaunchedEffect(Unit) {
@@ -160,6 +171,34 @@ fun SearchScreen(
     val context = LocalContext.current
     val downloader = remember { BeatmapDownloader(context) }
     val extractor = remember { ZipExtractor(context) }
+    val uriHandler = LocalUriHandler.current
+    val infoCoverEnabled by settingsManager.infoCoverEnabled.collectAsState(initial = true)
+
+    var infoDialogVisible by remember { mutableStateOf(false) }
+    var infoLoading by remember { mutableStateOf(false) }
+    var infoError by remember { mutableStateOf<String?>(null) }
+    var infoTarget by remember { mutableStateOf<BeatmapsetCompact?>(null) }
+    var infoBeatmaps by remember { mutableStateOf<List<BeatmapDetail>>(emptyList()) }
+    var infoMergedSetIds by remember { mutableStateOf<List<Long>>(emptyList()) }
+    var infoSetCreators by remember { mutableStateOf<Map<Long, String>>(emptyMap()) }
+
+    fun mergeKey(beatmap: BeatmapsetCompact): String {
+        return "${beatmap.title.trim().lowercase()}|${beatmap.artist.trim().lowercase()}"
+    }
+
+    fun buildMergeGroups(list: List<BeatmapsetCompact>): Map<String, Set<Long>> {
+        return list.groupBy { mergeKey(it) }.mapValues { entry -> entry.value.map { it.id }.toSet() }
+    }
+
+    fun unionMergeGroups(existing: Map<String, Set<Long>>, incoming: Map<String, Set<Long>>): Map<String, Set<Long>> {
+        if (incoming.isEmpty()) return existing
+        val result = existing.toMutableMap()
+        incoming.forEach { (k, v) ->
+            val prev = result[k]
+            result[k] = if (prev == null) v else prev + v
+        }
+        return result
+    }
 
     suspend fun downloadFallbackCoverImage(beatmapSetId: Long, coverUrl: String): String? {
         if (coverUrl.isBlank()) return null
@@ -193,9 +232,18 @@ fun SearchScreen(
     }
 
     val genres = listOf(
-        10 to "Electronic", 3 to "Anime", 4 to "Rock", 5 to "Pop",
-        2 to "Game", 9 to "Hip Hop", 11 to "Metal", 12 to "Classical",
-        13 to "Folk", 14 to "Jazz", 7 to "Novelty", 6 to "Other"
+        10 to stringResource(id = R.string.genre_electronic),
+        3 to stringResource(id = R.string.genre_anime),
+        4 to stringResource(id = R.string.genre_rock),
+        5 to stringResource(id = R.string.genre_pop),
+        2 to stringResource(id = R.string.genre_game),
+        9 to stringResource(id = R.string.genre_hiphop),
+        11 to stringResource(id = R.string.genre_metal),
+        12 to stringResource(id = R.string.genre_classical),
+        13 to stringResource(id = R.string.genre_folk),
+        14 to stringResource(id = R.string.genre_jazz),
+        7 to stringResource(id = R.string.genre_novelty),
+        6 to stringResource(id = R.string.genre_other)
     )
 
     fun applyLocalFilters(list: List<BeatmapsetCompact>): List<BeatmapsetCompact> {
@@ -258,7 +306,9 @@ fun SearchScreen(
 
     suspend fun loadRecent() {
         val recent = db.recentPlayDao().getRecentPlays()
-        searchResults = dedupeByTitle(applyLocalFilters(recent.map { it.toBeatmapset() }))
+        val applied = applyLocalFilters(recent.map { it.toBeatmapset() })
+        mergeGroups = buildMergeGroups(applied)
+        searchResults = dedupeByTitle(applied)
         currentCursor = null
         searchResultsMetadata = emptyMap()
         statusText = ""
@@ -266,7 +316,7 @@ fun SearchScreen(
     
     Column(modifier = Modifier.fillMaxSize()) {
         Text(
-            text = "Search",
+            text = stringResource(id = R.string.search_title),
             style = MaterialTheme.typography.displayMedium,
             modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 16.dp)
         )
@@ -274,9 +324,9 @@ fun SearchScreen(
         if (accessToken == null) {
             Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Not Logged In", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(id = R.string.search_not_logged), style = MaterialTheme.typography.titleMedium)
                     Text(
-                        "Please go to the Profile tab to configure credentials and login.",
+                        stringResource(id = R.string.search_config_prompt),
                         style = MaterialTheme.typography.bodyMedium
                     )
                     if (statusText.isNotEmpty()) {
@@ -343,10 +393,10 @@ fun SearchScreen(
                                     searchResultsMetadata =
                                         (searchResultsMetadata + result.metadata).filterKeys { it in mergedIds }
                                 }
-                                statusText = "Refreshed"
+                                statusText = context.getString(R.string.search_status_refreshed)
                             }
                         } catch (e: Exception) {
-                            statusText = "Refresh Error: ${e.message}"
+                            statusText = context.getString(R.string.search_status_refresh_error, e.message ?: "")
                         } finally {
                             isRefreshing = false
                         }
@@ -389,14 +439,14 @@ fun SearchScreen(
                                     .padding(bottom = 8.dp),
                                 placeholder = {
                                     Text(
-                                        "Search by title or artist...",
+                                        stringResource(id = R.string.search_placeholder),
                                         style = MaterialTheme.typography.bodySmall
                                     )
                                 },
                                 leadingIcon = {
                                     Icon(
                                         Icons.Default.Search,
-                                        contentDescription = "Search"
+                                        contentDescription = stringResource(id = R.string.search_cd_search)
                                     )
                                 },
                                 trailingIcon = {
@@ -423,9 +473,10 @@ fun SearchScreen(
                                                                     userId,
                                                                     isSupporter
                                                                 )
-                                                            val deduped =
-                                                                dedupeByTitle(result.beatmaps)
-                                                            searchResults = deduped
+                                val deduped =
+                                    dedupeByTitle(result.beatmaps)
+                                mergeGroups = buildMergeGroups(result.beatmaps)
+                                searchResults = deduped
                                                             currentCursor = result.cursor
                                                             searchResultsMetadata =
                                                                 filterMetadataFor(
@@ -434,13 +485,13 @@ fun SearchScreen(
                                                                 )
                                                         }
                                                     } catch (e: Exception) {
-                                                        statusText = "Error: ${e.message}"
+                                                        statusText = context.getString(R.string.search_error_prefix, e.message ?: "")
                                                     }
                                                 }
                                             }) {
                                                 Icon(
                                                     Icons.Default.Clear,
-                                                    contentDescription = "Clear"
+                                                contentDescription = stringResource(id = R.string.search_cd_clear)
                                                 )
                                             }
                                         }
@@ -460,11 +511,11 @@ fun SearchScreen(
                                             listOf("recent", "favorite", "most_played", "all")
                                         }
                                         val optionLabels = mapOf(
-                                            "played" to "Played",
-                                            "recent" to "Recent",
-                                            "favorite" to "Favorite",
-                                            "most_played" to "Most Play",
-                                            "all" to "All"
+                                            "played" to stringResource(id = R.string.search_filter_played),
+                                            "recent" to stringResource(id = R.string.search_filter_recent),
+                                            "favorite" to stringResource(id = R.string.search_filter_favorite),
+                                            "most_played" to stringResource(id = R.string.search_filter_most_played),
+                                            "all" to stringResource(id = R.string.search_filter_all)
                                         )
                                         val optionColors = mapOf(
                                             "played" to MaterialTheme.colorScheme.primary,
@@ -515,7 +566,7 @@ fun SearchScreen(
                                         ) {
                                             Spacer(modifier = Modifier.width(10.dp))
                                             Text(
-                                                text = optionLabels[filterMode] ?: "Select",
+                                                text = optionLabels[filterMode] ?: stringResource(id = R.string.search_filter_select),
                                                 style = MaterialTheme.typography.labelSmall.copy(
                                                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                                                 ),
@@ -523,7 +574,7 @@ fun SearchScreen(
                                             )
                                             Icon(
                                                 Icons.Default.ArrowDropDown,
-                                                contentDescription = "Filter"
+                                                contentDescription = stringResource(id = R.string.search_cd_filter)
                                             )
                                         }
                                         DropdownMenu(
@@ -596,13 +647,14 @@ fun SearchScreen(
                                                         searchAnyEnabled
                                                     )
                                                     val deduped = dedupeByTitle(result.beatmaps)
+                                                    mergeGroups = buildMergeGroups(result.beatmaps)
                                                     searchResults = deduped
                                                     currentCursor = result.cursor
                                                     searchResultsMetadata =
                                                         filterMetadataFor(deduped, result.metadata)
                                                 }
                                             } catch (e: Exception) {
-                                                statusText = "Search Error: ${e.message}"
+                                                statusText = context.getString(R.string.search_error_prefix, e.message ?: "")
                                             }
                                         }
                                     }
@@ -621,7 +673,7 @@ fun SearchScreen(
                             val usingMostPlayed = searchResultsMetadata.isNotEmpty()
                             if (!usingMostPlayed) {
                                 Text(
-                                    text = "Filter by Genre",
+                                    text = stringResource(id = R.string.search_filter_genre),
                                     style = MaterialTheme.typography.labelMedium,
                                     modifier = Modifier.padding(top = 4.dp)
                                 )
@@ -662,7 +714,7 @@ fun SearchScreen(
                                                                 )
                                                         }
                                                     } catch (e: Exception) {
-                                                        statusText = "Error: ${e.message}"
+                                                        statusText = context.getString(R.string.search_error_prefix, e.message ?: "")
                                                     }
                                                 }
                                             },
@@ -683,7 +735,7 @@ fun SearchScreen(
                             } else {
                                 // Show info text when genre filter is hidden for most_played
                                 Text(
-                                    text = "Genre filter not available in Most Played view",
+                                    text = stringResource(id = R.string.search_genre_not_available),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.secondary,
                                     modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
@@ -703,15 +755,43 @@ fun SearchScreen(
                                 .fillMaxWidth()
                             .graphicsLayer { alpha = rowAlpha }
                                 .clickable {
-                                    if (isDownloaded) {
-                                        // Play the song if downloaded
+                                    infoDialogVisible = true
+                                    infoLoading = true
+                                    infoError = null
+                                    infoTarget = map
+                                    infoBeatmaps = emptyList()
+                                    val key = mergeKey(map)
+                                    infoMergedSetIds = mergeGroups[key]?.toList() ?: listOf(map.id)
+                                    infoSetCreators = emptyMap()
+                                    val token = accessToken
+                                    if (token == null) {
+                                        infoError = context.getString(R.string.search_info_login_required)
+                                        infoLoading = false
+                                    } else {
                                         scope.launch {
-                                            val tracks = db.beatmapDao().getTracksForSet(map.id)
-                                            if (tracks.isNotEmpty()) {
-                                                // Let's fetch all downloaded songs to use as playlist context
-                                                val allDownloaded =
-                                                    db.beatmapDao().getAllBeatmaps().first()
-                                                musicController.playSong(tracks[0], allDownloaded)
+                                            try {
+                                                val allBeatmaps = mutableListOf<BeatmapDetail>()
+                                                val creators = mutableMapOf<Long, String>()
+                                                val ids = infoMergedSetIds.ifEmpty { listOf(map.id) }
+                                                ids.forEach { setId ->
+                                                    try {
+                                                        val detail = repository.getBeatmapsetDetail(
+                                                            accessToken = token,
+                                                            beatmapsetId = setId
+                                                        )
+                                                        allBeatmaps += detail.beatmaps
+                                                        creators[detail.id] = detail.creator
+                                                    } catch (e: Exception) {
+                                                        // keep going, surface error at end
+                                                        infoError = e.message ?: context.getString(R.string.search_info_load_partial_error)
+                                                    }
+                                                }
+                                                infoBeatmaps = allBeatmaps
+                                                infoSetCreators = creators
+                                            } catch (e: Exception) {
+                                                infoError = e.message ?: context.getString(R.string.search_info_load_error)
+                                            } finally {
+                                                infoLoading = false
                                             }
                                         }
                                     }
@@ -795,7 +875,7 @@ fun SearchScreen(
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = "plays",
+                                        text = stringResource(id = R.string.search_playcount_label),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.secondary
                                     )
@@ -810,7 +890,7 @@ fun SearchScreen(
                                             downloadStates =
                                                 downloadStates + (map.id to DownloadProgress(
                                                     0,
-                                                    "Starting..."
+                                                    context.getString(R.string.search_download_starting)
                                                 ))
                                             downloader.downloadBeatmap(map.id, accessToken)
                                                 .collect { state ->
@@ -819,7 +899,7 @@ fun SearchScreen(
                                                             downloadStates =
                                                                 downloadStates + (map.id to DownloadProgress(
                                                                     state.progress,
-                                                                    "Downloading"
+                                                                    context.getString(R.string.search_download_downloading)
                                                                 ))
                                                         }
 
@@ -827,7 +907,7 @@ fun SearchScreen(
                                                             downloadStates =
                                                                 downloadStates + (map.id to DownloadProgress(
                                                                     100,
-                                                                    "Extracting..."
+                                                                    context.getString(R.string.search_download_extracting)
                                                                 ))
                                                             try {
                                                                 val extractedTracks =
@@ -867,7 +947,7 @@ fun SearchScreen(
                                                                 downloadStates =
                                                                     downloadStates + (map.id to DownloadProgress(
                                                                         100,
-                                                                        "Done ✓"
+                                                                        context.getString(R.string.search_download_done)
                                                                     ))
                                                                 // Remove from download states after 2 seconds
                                                                 kotlinx.coroutines.delay(2000)
@@ -886,7 +966,7 @@ fun SearchScreen(
                                                             downloadStates =
                                                                 downloadStates + (map.id to DownloadProgress(
                                                                     0,
-                                                                    "Failed"
+                                                                    context.getString(R.string.search_download_failed)
                                                                 ))
                                                         }
 
@@ -900,7 +980,7 @@ fun SearchScreen(
                             ) {
                                 Icon(
                                     imageVector = if (isDownloaded) Icons.Default.CheckCircle else Icons.Default.Add,
-                                    contentDescription = if (isDownloaded) "Downloaded" else "Download",
+                                    contentDescription = if (isDownloaded) stringResource(id = R.string.search_cd_downloaded) else stringResource(id = R.string.search_cd_download),
                                     tint = if (isDownloaded) {
                                         MaterialTheme.colorScheme.primary
                                     } else if (downloadProgress != null) {
@@ -920,7 +1000,7 @@ fun SearchScreen(
                                 onClick = {
                                     scope.launch {
                                         isLoadingMore = true
-                                        statusText = "Loading more..."
+                                                statusText = context.getString(R.string.search_status_loading_more)
                                         try {
                                             val result = repository.getPlayedBeatmaps(
                                                 accessToken!!,
@@ -937,18 +1017,22 @@ fun SearchScreen(
                                                 val merged =
                                                     mergeByTitle(searchResults, result.beatmaps)
                                                 val mergedIds = merged.map { it.id }.toSet()
+                                                mergeGroups = unionMergeGroups(
+                                                    mergeGroups,
+                                                    buildMergeGroups(result.beatmaps)
+                                                )
                                                 searchResults = merged
                                                 currentCursor = result.cursor
                                                 searchResultsMetadata =
                                                     (searchResultsMetadata + result.metadata).filterKeys { it in mergedIds }
-                                                statusText =
-                                                    "Loaded ${result.beatmaps.size} more results"
+                                                        statusText =
+                                                            context.getString(R.string.search_status_loaded_more, result.beatmaps.size)
                                             } else {
-                                                statusText = "No more results available"
+                                                        statusText = context.getString(R.string.search_status_no_more)
                                                 currentCursor = null
                                             }
                                         } catch (e: Exception) {
-                                            statusText = "Load More Error: ${e.message}"
+                                                    statusText = context.getString(R.string.search_status_load_more_error, e.message ?: "")
                                         } finally {
                                             isLoadingMore = false
                                         }
@@ -987,6 +1071,127 @@ fun SearchScreen(
                 )
             }
         }
+
+        if (infoDialogVisible && infoTarget != null) {
+            val target = infoTarget!!
+            val downloaded = downloadedBeatmapSetIds.contains(target.id)
+            val grouped = infoBeatmaps.groupBy { it.mode }
+            AlertDialog(
+                onDismissRequest = { infoDialogVisible = false },
+                title = {
+                    Column {
+                        Text(
+                            text = target.title,
+                            style = MaterialTheme.typography.titleLarge,
+                            maxLines = 2
+                        )
+                        Text(
+                            text = target.artist,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                },
+                text = {
+                    Column {
+                        if (infoCoverEnabled) {
+                            AsyncImage(
+                                model = target.covers.listUrl,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(160.dp)
+                                    .clip(RoundedCornerShape(8.dp)),
+                                contentScale = ContentScale.Crop
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
+                        if (infoLoading) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(32.dp))
+                            }
+                        } else if (infoError != null) {
+                            Text(
+                                text = infoError ?: "",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        } else if (grouped.isEmpty()) {
+                            Text(
+                                text = stringResource(id = R.string.info_no_details),
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        } else {
+                            val bySet = infoBeatmaps.groupBy { it.beatmapsetId }
+                            bySet.forEach { (setId, list) ->
+                                val modes = list.groupBy { it.mode }
+                                val modeLabels = modes.keys.joinToString { modeLabel(it) }
+                                val starMin = list.minOfOrNull { it.difficultyRating } ?: 0f
+                                val starMax = list.maxOfOrNull { it.difficultyRating } ?: 0f
+                                val url = list.firstOrNull()?.url ?: "https://osu.ppy.sh/beatmapsets/$setId"
+                                val author = infoSetCreators[setId] ?: target.creator
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(vertical = 4.dp)
+                                        .clickable { uriHandler.openUri(url) }
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = stringResource(id = R.string.search_author_prefix, author),
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.secondary
+                                            )
+                                            Text(
+                                                text = stringResource(id = R.string.info_modes, modeLabels),
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                            Text(
+                                                text = stringResource(id = R.string.info_star_range, starMin, starMax),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.secondary
+                                            )
+                                            Text(
+                                                text = stringResource(id = R.string.info_diff_count, list.size),
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.secondary
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    if (downloaded) {
+                        TextButton(
+                            onClick = {
+                                scope.launch {
+                                    val tracks = db.beatmapDao().getTracksForSet(target.id)
+                                    if (tracks.isNotEmpty()) {
+                                        val allDownloaded =
+                                            db.beatmapDao().getAllBeatmaps().first()
+                                        musicController.playSong(tracks[0], allDownloaded)
+                                    }
+                                }
+                            }
+                        ) {
+                            Text(stringResource(id = R.string.search_play))
+                        }
+                    }
+                },
+                dismissButton = {}
+            )
+        }
         
         // Fetch user info when access token changes (login/logout)
         LaunchedEffect(accessToken) {
@@ -997,7 +1202,7 @@ fun SearchScreen(
                     isSupporter = user.isSupporter ?: false
                     isSupporterKnown = true
                 } catch (e: Exception) {
-                    statusText = "Failed to fetch user info: ${e.message}"
+                    statusText = context.getString(R.string.search_error_prefix, e.message ?: "")
                     isSupporter = false // Default to non-supporter on error
                     isSupporterKnown = true
                 }
@@ -1021,12 +1226,13 @@ fun SearchScreen(
                     } else {
                         val result = repository.getPlayedBeatmaps(accessToken, null, null, null, filterMode, playedFilterMode, uid, isSupporter, searchAnyEnabled)
                     val deduped = dedupeByTitle(result.beatmaps)
+                    mergeGroups = buildMergeGroups(result.beatmaps)
                     searchResults = deduped
                     currentCursor = result.cursor
                     searchResultsMetadata = filterMetadataFor(deduped, result.metadata)
                     }
                 } catch (e: Exception) {
-                    statusText = "Failed to load: ${e.message}"
+                    statusText = context.getString(R.string.search_error_prefix, e.message ?: "")
                 }
             }
         }
@@ -1043,4 +1249,14 @@ private fun RecentPlayEntity.toBeatmapset(): BeatmapsetCompact {
         covers = Covers(coverUrl = cover, listUrl = cover),
         genreId = null
     )
+}
+
+private fun modeLabel(mode: String): String {
+    return when (mode.lowercase()) {
+        "osu" -> "std"
+        "mania" -> "mania"
+        "taiko" -> "taiko"
+        "fruits", "catch" -> "catch"
+        else -> mode
+    }
 }

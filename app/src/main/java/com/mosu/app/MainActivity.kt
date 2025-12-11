@@ -28,6 +28,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -62,6 +63,7 @@ import com.mosu.app.data.repository.OsuRepository
 import com.mosu.app.player.MusicController
 import com.mosu.app.ui.components.MiniPlayer
 import com.mosu.app.ui.library.LibraryScreen
+import com.mosu.app.ui.playlist.PlaylistScreen
 import com.mosu.app.ui.profile.ProfileScreen
 import com.mosu.app.ui.search.SearchScreen
 import kotlinx.coroutines.launch
@@ -230,6 +232,9 @@ fun MainScreen(
                     composable("library") {
                         LibraryScreen(db, musicController)
                     }
+                    composable("playlists") {
+                        PlaylistScreen(db, musicController)
+                    }
                     composable("search") {
                         SearchScreen(
                             authCode = initialAuthCode,
@@ -334,6 +339,20 @@ fun MainScreen(
                     selected = currentDestination == "library",
                     onClick = {
                         navController.navigate("library") {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.LibraryMusic, contentDescription = "Playlists") },
+                    label = { Text("Playlists") },
+                    selected = currentDestination == "playlists",
+                    onClick = {
+                        navController.navigate("playlists") {
                             popUpTo(navController.graph.findStartDestination().id) {
                                 saveState = true
                             }

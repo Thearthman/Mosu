@@ -32,6 +32,10 @@ class OsuRepository(private val searchCacheDao: SearchCacheDao? = null) {
         return api.getMe("Bearer $accessToken")
     }
 
+    suspend fun getBeatmapsetDetail(accessToken: String, beatmapsetId: Long): com.mosu.app.data.api.model.BeatmapsetDetail {
+        return api.getBeatmapsetDetail("Bearer $accessToken", beatmapsetId)
+    }
+
     suspend fun getUserMostPlayed(accessToken: String, userId: String): List<BeatmapPlaycount> {
         return api.getUserMostPlayed("Bearer $accessToken", userId)
     }

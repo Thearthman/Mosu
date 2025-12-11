@@ -65,5 +65,11 @@ interface OsuApi {
         @Query("s") status: String? = null,
         @Query("cursor_string") cursorString: String? = null
     ): SearchResponse
+
+    @GET("api/v2/beatmapsets/{beatmapset_id}")
+    suspend fun getBeatmapsetDetail(
+        @Header("Authorization") authHeader: String,
+        @Path("beatmapset_id") beatmapsetId: Long
+    ): com.mosu.app.data.api.model.BeatmapsetDetail
 }
 

@@ -21,6 +21,7 @@ class SettingsManager(private val context: Context) {
         private val LANGUAGE_KEY = stringPreferencesKey("language") // "en", "zh-CN", "zh-TW"
         private val DEFAULT_SEARCH_VIEW_KEY = stringPreferencesKey("default_search_view") // played/recent/favorite/most_played/all/any
         private val SEARCH_ANY_KEY = booleanPreferencesKey("search_any_enabled")
+        private val INFO_COVER_KEY = booleanPreferencesKey("info_cover_enabled")
     }
 
     val clientId: Flow<String> = context.settingsDataStore.data
@@ -53,6 +54,11 @@ class SettingsManager(private val context: Context) {
             preferences[SEARCH_ANY_KEY] ?: false
         }
 
+    val infoCoverEnabled: Flow<Boolean> = context.settingsDataStore.data
+        .map { preferences ->
+            preferences[INFO_COVER_KEY] ?: true
+        }
+
     suspend fun saveCredentials(clientId: String, clientSecret: String) {
         context.settingsDataStore.edit { preferences ->
             preferences[CLIENT_ID_KEY] = clientId
@@ -81,6 +87,12 @@ class SettingsManager(private val context: Context) {
     suspend fun saveSearchAnyEnabled(enabled: Boolean) {
         context.settingsDataStore.edit { preferences ->
             preferences[SEARCH_ANY_KEY] = enabled
+        }
+    }
+
+    suspend fun saveInfoCoverEnabled(enabled: Boolean) {
+        context.settingsDataStore.edit { preferences ->
+            preferences[INFO_COVER_KEY] = enabled
         }
     }
 
