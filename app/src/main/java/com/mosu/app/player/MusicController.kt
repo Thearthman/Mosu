@@ -96,7 +96,7 @@ class MusicController(context: Context) {
         scope.launch {
             while (isActive) {
                 val controller = this@MusicController.controller
-                if (controller != null && controller.isPlaying) {
+                if (controller != null) {
                     _currentPosition.value = controller.currentPosition
                 }
                 delay(200) // Update 5 times per second for smooth slider
@@ -151,6 +151,7 @@ class MusicController(context: Context) {
     
     fun seekTo(positionMs: Long) {
         controller?.seekTo(positionMs)
+        _currentPosition.value = positionMs
     }
     
     fun toggleShuffleMode() {

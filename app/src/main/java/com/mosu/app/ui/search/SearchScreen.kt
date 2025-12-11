@@ -267,6 +267,12 @@ fun SearchScreen(
                                 listState.animateScrollToItem(0)
                             }
                             if (filterMode == "recent") {
+                                val uid = userId ?: return@launch
+                                val fresh = repository.fetchRecentPlays(
+                                    accessToken = accessToken!!,
+                                    userId = uid
+                                )
+                                db.recentPlayDao().replaceAll(fresh)
                                 loadRecent()
                             } else {
                                 val result = repository.getPlayedBeatmaps(

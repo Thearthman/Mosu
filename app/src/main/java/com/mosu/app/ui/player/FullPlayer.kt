@@ -2,6 +2,7 @@ package com.mosu.app.ui.player
 
 import android.graphics.Paint
 import android.graphics.fonts.FontStyle
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +19,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.magnifier
+import androidx.compose.foundation.interaction.DragInteraction
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.requiredHeight
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,6 +36,7 @@ import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -37,26 +44,37 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.SliderPositions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.lerp
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PointMode
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player
 import coil.compose.AsyncImage
@@ -64,7 +82,9 @@ import com.mosu.app.player.MusicController
 import com.mosu.app.player.PlaybackMod
 import java.text.SimpleDateFormat
 import java.util.Locale
+import androidx.compose.material3.Slider as M3Slider
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FullPlayer(
     musicController: MusicController,
@@ -81,11 +101,28 @@ fun FullPlayer(
 
     // For smooth seeking
     var isDragging by remember { mutableStateOf(false) }
-    var dragPosition by remember { mutableStateOf(0f) }
     var modMenuExpanded by remember { mutableStateOf(false) }
 
-    val sliderPosition = if (isDragging) dragPosition else currentPosition.toFloat()
     val sliderRange = 0f..duration.toFloat().coerceAtLeast(1f)
+    val sliderInteraction = remember { MutableInteractionSource() }
+    var sliderValue by remember { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(sliderInteraction) {
+        sliderInteraction.interactions.collect { interaction ->
+            when (interaction) {
+                is DragInteraction.Start -> isDragging = true
+                is DragInteraction.Stop, is DragInteraction.Cancel -> isDragging = false
+            }
+        }
+    }
+
+    LaunchedEffect(currentPosition, sliderRange, isDragging) {
+        if (!isDragging) {
+            sliderValue = currentPosition
+                .toFloat()
+                .coerceIn(sliderRange.start, sliderRange.endInclusive)
+        }
+    }
 
     if (nowPlaying != null) {
         Box(
@@ -150,7 +187,7 @@ fun FullPlayer(
                     contentScale = ContentScale.Crop
                 )
 
-                Spacer(modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.weight(10f))
 
                 // Title and Artist
                 Column(
@@ -173,25 +210,51 @@ fun FullPlayer(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(5.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Progress Bar
+                val sliderColors = SliderDefaults.colors(
+                    thumbColor = Color(0x00000000),
+                    disabledThumbColor = Color(0x00000000),
+                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                    inactiveTrackColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f),
+                )
+                val activeTrackColor = MaterialTheme.colorScheme.primary
+                val inactiveTrackColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f)
                 Slider(
-                    value = sliderPosition,
-                    onValueChange = {
+                    modifier = Modifier.height(36.dp),
+                    value = sliderValue,
+                    onValueChange = { newValue ->
                         isDragging = true
-                        dragPosition = it
+                        sliderValue = newValue.coerceIn(sliderRange.start, sliderRange.endInclusive)
                     },
                     onValueChangeFinished = {
-                        musicController.seekTo(dragPosition.toLong())
                         isDragging = false
+                        musicController.seekTo(sliderValue.toLong())
                     },
                     valueRange = sliderRange,
-                    colors = SliderDefaults.colors(
-                        thumbColor = MaterialTheme.colorScheme.primary,
-                        activeTrackColor = MaterialTheme.colorScheme.primary,
-                        inactiveTrackColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f)
-                    )
+                    interactionSource = sliderInteraction,
+                    colors = sliderColors,
+                    thumb = {
+                        SliderDefaults.Thumb(
+                            interactionSource = sliderInteraction,
+                            colors = sliderColors,
+                            enabled = true,
+                            thumbSize = DpSize(28.dp, 28.dp),
+                            modifier = Modifier.alpha(0f)
+                        )
+                    },
+                    track = { positions ->
+                        Track(
+                            sliderPositions = positions,
+                            activeTrackColor = activeTrackColor,
+                            inactiveTrackColor = inactiveTrackColor,
+                            activeTickColor = activeTrackColor.copy(alpha = 0.6f),
+                            inactiveTickColor = inactiveTrackColor.copy(alpha = 0.6f),
+                            trackHeight = 10.dp,
+                            horizontalExpansion = 50f
+                        )
+                    }
                 )
                 
                 // Time Labels
@@ -200,7 +263,7 @@ fun FullPlayer(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = formatTime(sliderPosition.toLong()),
+                        text = formatTime(sliderValue.toLong()),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
                     )
@@ -211,7 +274,7 @@ fun FullPlayer(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(35.dp))
 
                 // Controls Row
                 Row(
@@ -363,7 +426,7 @@ fun FullPlayer(
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(48.dp))
+                Spacer(modifier = Modifier.height(55.dp))
             }
         }
     }
@@ -388,3 +451,66 @@ private fun modMenuLabel(mod: PlaybackMod): String = when (mod) {
     PlaybackMod.NIGHT_CORE -> "NIGHT CORE"
 }
 
+@Composable
+fun Track(
+    sliderPositions: SliderPositions,
+    modifier: Modifier = Modifier,
+    activeTrackColor: Color,
+    inactiveTrackColor: Color,
+    activeTickColor: Color = activeTrackColor,
+    inactiveTickColor: Color = inactiveTrackColor,
+    trackHeight: Dp = 15.dp,
+    horizontalExpansion: Float = 0f
+) {
+    Canvas(
+        modifier
+            .fillMaxWidth()
+            .height(trackHeight)
+    ) {
+        val isRtl = layoutDirection == LayoutDirection.Rtl
+        val sliderLeft = Offset(0f - horizontalExpansion, center.y)
+        val sliderRight = Offset(size.width + horizontalExpansion, center.y)
+        val sliderStart = if (isRtl) sliderRight else sliderLeft
+        val sliderEnd = if (isRtl) sliderLeft else sliderRight
+        val tickSizePx = 2.dp.toPx()
+        val trackStrokeWidth = trackHeight.toPx()
+
+        drawLine(
+            color = inactiveTrackColor,
+            start = sliderStart,
+            end = sliderEnd,
+            strokeWidth = trackStrokeWidth,
+            cap = StrokeCap.Round
+        )
+
+        val sliderValueEnd = Offset(
+            sliderStart.x + (sliderEnd.x - sliderStart.x) * sliderPositions.activeRange.endInclusive,
+            center.y
+        )
+        val sliderValueStart = Offset(
+            sliderStart.x + (sliderEnd.x - sliderStart.x) * sliderPositions.activeRange.start,
+            center.y
+        )
+
+        drawLine(
+            color = activeTrackColor,
+            start = sliderValueStart,
+            end = sliderValueEnd,
+            strokeWidth = trackStrokeWidth,
+            cap = StrokeCap.Round
+        )
+
+        sliderPositions.tickFractions.groupBy { fraction ->
+            fraction > sliderPositions.activeRange.endInclusive ||
+                    fraction < sliderPositions.activeRange.start
+        }.forEach { (outsideFraction, list) ->
+            drawPoints(
+                points = list.map { Offset(lerp(sliderStart, sliderEnd, it).x, center.y) },
+                pointMode = PointMode.Points,
+                color = if (outsideFraction) inactiveTickColor else activeTickColor,
+                strokeWidth = tickSizePx,
+                cap = StrokeCap.Round
+            )
+        }
+    }
+}

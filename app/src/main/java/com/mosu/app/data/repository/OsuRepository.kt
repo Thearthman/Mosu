@@ -9,6 +9,8 @@ import com.mosu.app.data.api.model.OsuTokenResponse
 import com.mosu.app.data.api.model.OsuUserCompact
 import com.mosu.app.data.db.SearchCacheDao
 import com.mosu.app.data.db.SearchCacheEntity
+import com.mosu.app.data.db.RecentPlayEntity
+import java.time.OffsetDateTime
 
 class OsuRepository(private val searchCacheDao: SearchCacheDao? = null) {
     private val api = RetrofitClient.api
@@ -53,6 +55,35 @@ class OsuRepository(private val searchCacheDao: SearchCacheDao? = null) {
             }
         }
         return ordered
+    }
+
+    suspend fun fetchRecentPlays(
+        accessToken: String,
+        userId: String,
+        limit: Int = 100
+    ): List<RecentPlayEntity> {
+        val recentScores = api.getUserRecentScores("Bearer $accessToken", userId, limit, includeFails = true)
+        val cutoff = OffsetDateTime.now().minusDays(7)
+        val seen = mutableSetOf<Long>()
+        val entities = mutableListOf<RecentPlayEntity>()
+        for (score in recentScores) {
+            val playedAt = score.createdAt?.let { runCatching { OffsetDateTime.parse(it) }.getOrNull() } ?: continue
+            if (playedAt.isBefore(cutoff)) continue
+            val beatmapset = score.beatmap?.beatmapset ?: continue
+            if (!seen.add(beatmapset.id)) continue
+            entities.add(
+                RecentPlayEntity(
+                    scoreId = score.scoreId,
+                    beatmapSetId = beatmapset.id,
+                    title = beatmapset.title,
+                    artist = beatmapset.artist,
+                    creator = beatmapset.creator,
+                    coverUrl = beatmapset.covers.coverUrl,
+                    playedAt = playedAt.toInstant().toEpochMilli()
+                )
+            )
+        }
+        return entities
     }
 
     data class PlayedBeatmapsResult(

@@ -1,11 +1,13 @@
 # Bug Fix
 1. Order of beatmaps displayed in Favorite view is not order to the chronological order that the user favorites the map, which is supposed to be the default ordering of the returned data.
+2. The album cover displayed in the miniplayer & fullplayer is different from phone's music player. This only happens when downloading processing merged beatmaps data. See if there is any logical mistake in merging that would cause this.
 
 # UI improvement (implement 3 first)
 ~~1. the "top bar" which is where the status bar of the phone sits, is now colored grey for some reason. Make it blend in.~~
 ~~2. Add dark mode.~~
 ~~3. remove black line below search bar. Also make genre bar sit closer to search bar and song list below, and make the genre buttons slightly smaller.~~
 ~~4. add most-played view also to support. Support's search page should be able to contain all 4 search methods. We need to rethink about the ordering of these modes, maybe change the UX for switching between 4 modes because one button is too much for 4 modes.~~
+~~5. Slider reshape into AM style.~~
 
 
 # New Feature 

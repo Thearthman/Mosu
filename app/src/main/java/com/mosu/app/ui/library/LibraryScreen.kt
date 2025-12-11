@@ -174,7 +174,7 @@ fun LibraryScreen(
 
         if (nowPlaying != null) {
             val isLight = androidx.compose.foundation.isSystemInDarkTheme().not()
-            val flickerColor = if (isLight) MaterialTheme.colorScheme.onPrimary else Color.Black
+            val flickerColor = if (isLight) MaterialTheme.colorScheme.onPrimary else Color(0xff300063)
             val buttonBg = if (buttonBlink) flickerColor.copy(alpha = 0.35f) else Color.Transparent
             IconButton(
                 onClick = {
@@ -251,7 +251,7 @@ fun AlbumGroupItem(
         state = dismissState,
         directions = setOf(DismissDirection.EndToStart),
         background = {
-            val flickerColor = if (isSystemInDarkTheme()) Color.Black else Color.LightGray
+            val flickerColor = if (isSystemInDarkTheme()) Color(0xFF300063) else Color.LightGray
             val bgColor = if (highlight) flickerColor else MaterialTheme.colorScheme.error
             val iconTint = if (highlight) Color.Transparent else MaterialTheme.colorScheme.onError
 
@@ -272,7 +272,7 @@ fun AlbumGroupItem(
 
         },
         dismissContent = {
-            val flickerColor = if (isSystemInDarkTheme()) Color.Black else Color.LightGray
+            val flickerColor = if (isSystemInDarkTheme()) Color(0xFF300063) else Color.LightGray
             val bg = if (highlight) flickerColor else MaterialTheme.colorScheme.surface
             Column(
                 modifier = Modifier
@@ -352,7 +352,7 @@ fun SingleTrackItem(
         state = dismissState,
         directions = setOf(DismissDirection.EndToStart),
         background = {
-            val flickerColor = if (isSystemInDarkTheme()) Color.Black else Color.LightGray
+            val flickerColor = if (isSystemInDarkTheme()) Color(0xFF300063) else Color.LightGray
             val bgColor = if (highlight) flickerColor else MaterialTheme.colorScheme.error
             val iconTint = if (highlight) Color.Transparent else MaterialTheme.colorScheme.onError
             Box(
@@ -371,7 +371,7 @@ fun SingleTrackItem(
             }
         },
         dismissContent = {
-            val flickerColor = if (isSystemInDarkTheme()) Color.Black else Color.LightGray
+            val flickerColor = if (isSystemInDarkTheme()) Color(0xFF300063) else Color.LightGray
             val bg = if (highlight) flickerColor else MaterialTheme.colorScheme.surface            
             Row(
                 modifier = Modifier
