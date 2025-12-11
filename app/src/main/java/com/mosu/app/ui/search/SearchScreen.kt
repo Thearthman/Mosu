@@ -1,5 +1,6 @@
 package com.mosu.app.ui.search
 
+import android.util.Log
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
@@ -74,10 +75,14 @@ import com.mosu.app.data.repository.OsuRepository
 import com.mosu.app.domain.download.BeatmapDownloader
 import com.mosu.app.domain.download.DownloadState
 import com.mosu.app.domain.download.ZipExtractor
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileOutputStream
+import java.net.URL
 
 data class DownloadProgress(
     val progress: Int, // 0-100
@@ -155,6 +160,26 @@ fun SearchScreen(
     val context = LocalContext.current
     val downloader = remember { BeatmapDownloader(context) }
     val extractor = remember { ZipExtractor(context) }
+
+    suspend fun downloadFallbackCoverImage(beatmapSetId: Long, coverUrl: String): String? {
+        if (coverUrl.isBlank()) return null
+
+        return withContext(Dispatchers.IO) {
+            try {
+                val outputDir = File(context.getExternalFilesDir(null), "beatmaps/$beatmapSetId")
+                if (!outputDir.exists()) outputDir.mkdirs()
+
+                val target = File(outputDir, "cover_api.jpg")
+                URL(coverUrl).openStream().use { input ->
+                    FileOutputStream(target).use { output -> input.copyTo(output) }
+                }
+                target.absolutePath
+            } catch (e: Exception) {
+                Log.w("SearchScreen", "Failed to download fallback cover", e)
+                null
+            }
+        }
+    }
     
     // Scroll state for collapsing header
     val listState = rememberLazyListState()
@@ -185,28 +210,44 @@ fun SearchScreen(
     }
 
     fun dedupeByTitle(list: List<BeatmapsetCompact>): List<BeatmapsetCompact> {
-        val seen = mutableSetOf<String>()
-        val merged = mutableListOf<BeatmapsetCompact>()
+        val map = LinkedHashMap<String, BeatmapsetCompact>()
         list.forEach { beatmap ->
-            val key = beatmap.title.trim().lowercase()
-            if (seen.add(key)) {
-                merged.add(beatmap)
+            val key = "${beatmap.title.trim().lowercase()}|${beatmap.artist.trim().lowercase()}"
+            val existing = map[key]
+            val isDownloaded = beatmap.id in downloadedBeatmapSetIds
+            val existingDownloaded = existing?.id?.let { it in downloadedBeatmapSetIds } ?: false
+            when {
+                existing == null -> map[key] = beatmap
+                !existingDownloaded && isDownloaded -> map[key] = beatmap // prefer downloaded variant
+                else -> { /* keep existing */ }
             }
         }
-        return merged
+        return map.values.toList()
     }
 
     fun mergeByTitle(existing: List<BeatmapsetCompact>, incoming: List<BeatmapsetCompact>): List<BeatmapsetCompact> {
         if (incoming.isEmpty()) return existing
-        val seen = existing.map { it.title.trim().lowercase() }.toMutableSet()
-        val merged = existing.toMutableList()
-        incoming.forEach { beatmap ->
-            val key = beatmap.title.trim().lowercase()
-            if (seen.add(key)) {
-                merged.add(beatmap)
+
+        val map = LinkedHashMap<String, BeatmapsetCompact>()
+        fun putIfBetter(beatmap: BeatmapsetCompact) {
+            val key = "${beatmap.title.trim().lowercase()}|${beatmap.artist.trim().lowercase()}"
+            val existingVal = map[key]
+            val isDownloaded = beatmap.id in downloadedBeatmapSetIds
+            val existingDownloaded = existingVal?.id?.let { it in downloadedBeatmapSetIds } ?: false
+            when {
+                existingVal == null -> map[key] = beatmap
+                !existingDownloaded && isDownloaded -> map[key] = beatmap
+                else -> { /* keep existing */ }
             }
         }
-        return merged
+
+        existing.forEach { putIfBetter(it) }
+        incoming.forEach { putIfBetter(it) }
+
+        val merged = map.values.toList()
+        if (downloadedBeatmapSetIds.isEmpty()) return merged
+        val (downloaded, others) = merged.partition { it.id in downloadedBeatmapSetIds }
+        return downloaded + others
     }
 
     fun filterMetadataFor(list: List<BeatmapsetCompact>, metadata: Map<Long, Pair<Int, Int>>): Map<Long, Pair<Int, Int>> {
@@ -794,7 +835,22 @@ fun SearchScreen(
                                                                         state.file,
                                                                         map.id
                                                                     )
+                                                                val fallbackCoverPath =
+                                                                    if (extractedTracks.any { track ->
+                                                                            track.coverFile == null || !track.coverFile.exists()
+                                                                        }
+                                                                    ) {
+                                                                        downloadFallbackCoverImage(
+                                                                            map.id,
+                                                                            map.covers.listUrl
+                                                                        )
+                                                                    } else {
+                                                                        null
+                                                                    }
                                                                 extractedTracks.forEach { track ->
+                                                                    val coverPath = track.coverFile?.takeIf { it.exists() }?.absolutePath
+                                                                        ?: fallbackCoverPath
+                                                                        ?: ""
                                                                     val entity = BeatmapEntity(
                                                                         beatmapSetId = map.id,
                                                                         title = track.title,
@@ -802,8 +858,7 @@ fun SearchScreen(
                                                                         creator = map.creator,
                                                                         difficultyName = track.difficultyName,
                                                                         audioPath = track.audioFile.absolutePath,
-                                                                        coverPath = track.coverFile?.absolutePath
-                                                                            ?: "",
+                                                                        coverPath = coverPath,
                                                                         genreId = map.genreId
                                                                     )
                                                                     db.beatmapDao()

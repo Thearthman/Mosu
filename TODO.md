@@ -8,6 +8,7 @@
 ~~3. remove black line below search bar. Also make genre bar sit closer to search bar and song list below, and make the genre buttons slightly smaller.~~
 ~~4. add most-played view also to support. Support's search page should be able to contain all 4 search methods. We need to rethink about the ordering of these modes, maybe change the UX for switching between 4 modes because one button is too much for 4 modes.~~
 ~~5. Slider reshape into AM style.~~
+6. In Search page, Add a game mode label at the end of the composer's name's line. 
 
 
 # New Feature 
@@ -34,6 +35,9 @@
     ~~4. Sort played query list by data played, which is quite difficult to implement I'll have to think about how to use osu apis and mechanism to achieve this.~~
     ~~5. In search page, when displaying the result query, merge songs with same title. for detail on how it works, please reference the merge method in favorite queries. Also we do not need to concern about beatmaps difficulty name here because they are not included in the data returned. You should use the album and song info from the very first song you got with that title. When load more is pressed, it should also skip newly returned songs that already has a song with exact same title present.~~
     ~~6. Avoid special character injections, and avoid directly adding special character to the http request.~~
+    7. add info popup in search page when clicking beatmaps, should account for the following factors: merged song, not merged song. Account for the fact that beatmaps could be merged and also have multiple difficulties at the same time. The popup should contain difficulties for all merged beatmaps in this situation. Regarding the UIUX of individual song boxes: For each beatmap, it's box simply shows beatmap author,  game mode, star rating range(not displaying individual difficulties now). They can have multiple game mode and corresponding star rating range. When the box is clicked, it brings you to the beatmap's osu website 
+    ~~8. Change merge algorithm: prioritize to display songs already in the library when merging. Also, when merging, the condition changes to not only should the title match exactly, the author has to match as well.~~
+    9. Add a preferred game mode setting in profile page and only show the preferred game mode if one beatmap has multiple game modes
 5. Library update
     ~~1. Implement library filter. Same as the search genre filter.~~
     ~~2. waiting for loop implementation to make the library genre filter applies to `loop`/`random` playlist.~~

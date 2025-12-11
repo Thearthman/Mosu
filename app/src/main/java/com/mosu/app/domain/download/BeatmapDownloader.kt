@@ -29,10 +29,14 @@ class BeatmapDownloader(private val context: Context) {
         .followRedirects(true)
         .build()
 
+    private val nerinyanQueryParams = "?noVideo=true&noBg=false&NoHitsound=true&NoStoryboard=true"
+
     // Mirrors - Using well-known public mirrors
     private val mirrors = listOf(
         // Nerinyan - Fast on campus/Eduroam
-        "https://api.nerinyan.moe/d/%s",
+        "https://api.nerinyan.moe/d/%s$nerinyanQueryParams",
+        // Nerinyan backup
+        "https://ko2.nerinyan.moe/d/%s$nerinyanQueryParams",
         // Sayobot - Direct download (very reliable)
         "https://dl.sayobot.cn/beatmaps/download/full/%s",
         // Mino (Catboy) - Standard mirror
@@ -54,6 +58,7 @@ class BeatmapDownloader(private val context: Context) {
                 
                 val request = Request.Builder()
                     .url(url)
+                    .header("Accept", "application/x-osu-beatmap-archive")
                     .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36")
                     .build()
                 
