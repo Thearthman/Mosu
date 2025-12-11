@@ -99,6 +99,8 @@ fun SearchScreen(
     scrollToTop: Boolean = false,
     onScrolledToTop: () -> Unit = {}
 ) {
+    var debugMode = false
+
     var statusText by remember { mutableStateOf("") }
     
     // Search Query
@@ -906,7 +908,7 @@ fun SearchScreen(
                     }
 
                     // Status/Error Message Display
-                    if (statusText.isNotEmpty()) {
+                    if (statusText.isNotEmpty() && debugMode) {
                         item {
                             Text(
                                 text = statusText,

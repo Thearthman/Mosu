@@ -106,6 +106,25 @@ class OsuRepository(private val searchCacheDao: SearchCacheDao? = null) {
     ): PlayedBeatmapsResult {
         val safeQuery = sanitizeQuery(searchQuery)
 
+        if (filterMode == "favorite" && userId != null && cursorString != "cache") {
+            val offset = cursorString?.toIntOrNull() ?: 0
+            val limit = 50
+            val favourites = api.getUserFavoriteBeatmapsets(
+                authHeader = "Bearer $accessToken",
+                userId = userId,
+                limit = limit,
+                offset = offset
+            )
+            val filtered = if (!safeQuery.isNullOrEmpty()) {
+                favourites.filter {
+                    it.title.contains(safeQuery, ignoreCase = true) ||
+                            it.artist.contains(safeQuery, ignoreCase = true)
+                }
+            } else favourites
+            val nextCursor = if (favourites.size < limit) null else (offset + limit).toString()
+            return PlayedBeatmapsResult(filtered, nextCursor)
+        }
+
         // Explicit most_played view
         if (filterMode == "most_played" && userId != null && cursorString == null) {
             val mostPlayedData = api.getUserMostPlayed("Bearer $accessToken", userId, limit = 100)

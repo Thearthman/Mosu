@@ -48,6 +48,14 @@ interface OsuApi {
         @Query("include_fails") includeFails: Boolean = true
     ): List<com.mosu.app.data.api.model.RecentScore>
 
+    @GET("api/v2/users/{user_id}/beatmapsets/favourite")
+    suspend fun getUserFavoriteBeatmapsets(
+        @Header("Authorization") authHeader: String,
+        @Path("user_id") userId: String,
+        @Query("limit") limit: Int = 50,
+        @Query("offset") offset: Int = 0
+    ): List<com.mosu.app.data.api.model.BeatmapsetCompact>
+
     @GET("api/v2/beatmapsets/search")
     suspend fun searchBeatmapsets(
         @Header("Authorization") authHeader: String,
